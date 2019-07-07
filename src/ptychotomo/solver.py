@@ -29,7 +29,7 @@ class Solver(object):
         # normalization coefficients
         self.coefptycho = 1 / cp.abs(prb).max().get()
         self.coefdata = 1 / (self.ndetx*self.ndety *
-                             (cp.abs(prb)**2).max().get())
+                             (cp.abs(prb)**2).max().get())# check 
 
     def mlog(self, psi):
         res = psi.copy()
@@ -108,8 +108,8 @@ class Solver(object):
             fd = self.fwd_ptycho(d)
             gamma = self.line_search(minf, gamma, psi, fpsi, d, fd)
             psi = psi + gamma*d
-            if(np.mod(i,4)==-1):
-                    print(i,minf(psi,fpsi))
+            # if(np.mod(i,4)==0):
+            #         print(i,minf(psi,fpsi))
            
             ##print(gamma,minf(psi, fpsi))
             # ang = cp.angle(psi)
