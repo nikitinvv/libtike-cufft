@@ -90,7 +90,6 @@ class Solver(object):
         
         for i in range(piter):
             start = time.time()
-            print(i)
             fpsi = self.fwd_ptycho(psi)
             if model == 'gaussian':
                 grad = self.adj_ptycho(
@@ -109,13 +108,16 @@ class Solver(object):
             fd = self.fwd_ptycho(d)
             gamma = self.line_search(minf, gamma, psi, fpsi, d, fd)
             psi = psi + gamma*d
+            if(np.mod(i,4)==-1):
+                    print(i,minf(psi,fpsi))
+           
             ##print(gamma,minf(psi, fpsi))
             # ang = cp.angle(psi)
             # ang[ang>np.pi]-=2*np.pi
             # ang[ang<-np.pi]+=2*np.pi
             # psi = cp.abs(psi)*cp.exp(1j*ang)
             end = time.time()
-            print(end - start)
+            # print(end - start)
         if(cp.amax(cp.abs(cp.angle(psi))) > 3.14):
             print('possible phase wrap, max computed angle',
                   cp.amax(cp.abs(cp.angle(psi))))

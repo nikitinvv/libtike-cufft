@@ -26,18 +26,18 @@ if __name__ == "__main__":
     prbsize = 256  # probe size
     prbshift = 64  # np.int(0.5667*113)
     det = [339, 339]  # detector size
-    noise = False  # apply discrete Poisson noise
+    noise = True  # apply discrete Poisson noise
     model = 'gaussian'  # minimization funcitonal (poisson,gaussian)
-    piter = 2000  # ptychography iterations
-    prbid = 1
+    piter = 2048  # ptychography iterations
+    prbid = igpu+1
     ampl0 = dxchange.read_tiff(
-        'data/Cryptomeria_japonica-1024.tif')#[::4, ::4]
+        'data/Cryptomeria_japonica-0256.tif')
     angle0 = dxchange.read_tiff(
-        'data/Erdhummel_Bombus_terrestris-1024.tif')#[::4, ::4]
-    prb = cp.array(np.load('probes.npy')[prbid].astype('complex64'))
+        'data/Erdhummel_Bombus_terrestris-0256.tif')
+    prb = cp.array(np.load('probes/probes-010.npy')[prbid].astype('complex64'))
 
     ampl0 = ampl0/255.0
-    angle0 = (angle0/255.0-0.5)*5#+np.pi/2
+    angle0 = (angle0/255.0)*np.pi
 
     pad = 128
     [nz, n] = np.shape(ampl0)
@@ -84,14 +84,21 @@ if __name__ == "__main__":
     anglrec = cp.angle(psi).get()#-cp.mean(cp.angle(psi[0, pad/4:3*pad/4, n/2-pad/4:n/2+pad/4]))).get()
     amprec = cp.abs(psi).get()
     anglrecu = unwrap_phase(anglrec).astype('float32')
-    # anglrec[anglrec>np.pi]-=2*np.pi
-    # anglrec[anglrec<-np.pi]+=2*np.pi
-    print(np.max(anglrec))
-    print(np.min(anglrec))
+
+    # tmp = cp.int32(anglrecu/(2*np.pi))
+    # ids = (tmp not 0)
+    #anglrecu+=np.pi
+    anglrecu2=(anglrecu-np.int32((anglrecu)/(2*np.pi))*2*np.pi).astype('float32')
+    anglrecu2[anglrecu2>np.pi*1]-=2*np.pi
+    anglrecu2[anglrecu2<=-np.pi*1.8]+=2*np.pi
+    # anglrecu2 = unwrap_phase(anglrecu).astype('float32')
+    # anglrecu-=np.round(anglrecu/(2*np.pi))*2*np.pi
     # Save result
     name = 'noise'+str(noise)+'prbid' + \
-        str(prbid)+'prbshift'+str(prbshift)+str(model)+str(piter)
-    dxchange.write_tiff(anglrec[0,pad:-pad,pad:-pad],  'psiangle/psiangle'+name, overwrite=True)
-    dxchange.write_tiff(anglrecu[0,pad:-pad,pad:-pad],  'psiangle/psiangleu'+name, overwrite=True)
-    dxchange.write_tiff(amprec[0,pad:-pad,pad:-pad], 'psiamp/psiamp'+name,overwrite=True)
+        str(prbid)+'prbshift'+str(prbshift)+str(model)
+    # dxchange.write_tiff(anglrec[0,pad:-pad,pad:-pad],  'psiangle/psiangle'+name, overwrite=True)
+    # dxchange.write_tiff(anglrecu[0,pad:-pad,pad:-pad],  'psiangle/psiangleunwrap'+name, overwrite=True)
+    dxchange.write_tiff(anglrecu2[0,pad:-pad,pad:-pad],  'psiangle/psiangleunwrap2'+name, overwrite=True)
+
+    # dxchange.write_tiff(amprec[0,pad:-pad,pad:-pad], 'psiamp/psiamp'+name,overwrite=True)
     
