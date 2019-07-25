@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     # Model parameters
     prbsize = 256  # probe size
-    prbshift = 8  # np.int(0.5667*113)
+    prbshift = 64  # np.int(0.5667*113)
     det = [339, 339]  # detector size
     noise = True  # apply discrete Poisson noise
     model = 'gaussian'  # minimization funcitonal (poisson,gaussian)
