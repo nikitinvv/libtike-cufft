@@ -1,5 +1,5 @@
 #include <cufft.h>
-
+// #define CHECKPOS 0
 class ptychofft
 {
 	size_t N;

@@ -18,9 +18,8 @@ def probe(size,maxint=1,rin=0.8, rout=1):
 def scanner3( shape, sx, sy, psize, spiral=0, randscan=False, save=False):
     
     scx, scy = np.meshgrid(
-        np.arange(0, shape[1]-psize+1, sx), np.arange(0, shape[2]-psize+1, sy))
+        np.arange(0, shape[2]-psize+1, sx), np.arange(0, shape[1]-psize+1, sy))
     shapescan = np.size(scx)
-    # print(scy)
     # print(shapescan)
     scanax = -1+np.zeros([1, shapescan], dtype='float32')
     scanay = -1+np.zeros([1, shapescan], dtype='float32')
@@ -37,8 +36,8 @@ def scanner3( shape, sx, sy, psize, spiral=0, randscan=False, save=False):
             # print(scanax[m])        
     scanax[np.where(np.round(scanax) < 0)] = 0
     scanay[np.where(np.round(scanay) < 0)] = 0
-    scanax[np.where(np.round(scanax) > shape[1]-psize)] = shape[1]-psize-1
-    scanay[np.where(np.round(scanay) > shape[2]-psize)] = shape[2]-psize-1
+    scanax[np.where(np.round(scanax) > shape[2]-psize)] = shape[2]-psize-1
+    scanay[np.where(np.round(scanay) > shape[1]-psize)] = shape[1]-psize-1
     # plot probes
     if save:
         import matplotlib.pyplot as plt
@@ -49,8 +48,8 @@ def scanner3( shape, sx, sy, psize, spiral=0, randscan=False, save=False):
             return tuple(rgbl)
         for j in range(0,1):
             fig, ax = plt.subplots(1)
-            plt.xlim(-1, shape[1]+2)
-            plt.ylim(-1, shape[2]+2)
+            plt.xlim(-1, shape[2]+2)
+            plt.ylim(-1, shape[1]+2)
             plt.gca().set_aspect('equal', adjustable='box')
             # plt.axis('off')
             

@@ -8,8 +8,7 @@ import numpy as np
 import scipy
 import ptychotomo as pt
 import time
-from skimage.restoration import unwrap_phase
-
+import h5py
 if __name__ == "__main__":
 
     if (len(sys.argv) < 2):
@@ -23,39 +22,30 @@ if __name__ == "__main__":
     cp.cuda.set_allocator(pool.malloc)
 
     # Model parameters
-    prbsize = 256  # probe size
-    prbshift = 64  # np.int(0.5667*113)
-    det = [339, 339]  # detector size
-    noise = True  # apply discrete Poisson noise
-    model = 'gaussian'  # minimization funcitonal (poisson,gaussian)
-    piter = 1024  # ptychography iterations
-    pad = 128
-    prbfile = 'probes-0.1'
-    prbid = igpu+1
-    amp0 = dxchange.read_tiff(
-        'data/Cryptomeria_japonica-0256.tif').astype('float32')/255.0
-    ang0 = dxchange.read_tiff(
-        'data/Erdhummel_Bombus_terrestris-0256.tif').astype('float32')/255.0*np.pi
-    prb = cp.array(np.load('probes/'+str(prbfile)+'.npy')[prbid].astype('complex64'))
-    # prb = cp.abs(prb)**cp.exp(1j*cp.angle(prb))
-    dxchange.write_tiff(ang0,  'anginit', overwrite=True)
-    dxchange.write_tiff(amp0,  'ampinit', overwrite=True)
-    # print(np.abs(prb).max())
-    # exit()
-    # build ps  i
-    [nz, n] = np.shape(amp0)
-    nz += 2*pad
-    n += 2*pad
-    amp = np.ones([nz, n], dtype=np.float32)*amp0[0, 0]
-    ang = np.ones([nz, n], dtype=np.float32)*ang0[0, 0]
-    amp[pad:-pad, pad:-pad] = amp0
-    ang[pad:-pad, pad:-pad] = ang0    
-    psi = amp*np.exp(1j*ang)    
-    psi = cp.array(np.expand_dims(psi, axis=0))
+    prbshiftx = 300/28.17822322520485  # np.int(0.5667*113)
+    prbshifty = prbshiftx*2/3.0  # np.int(0.5667*113)
+    n = np.int(prbshiftx*42+128-prbshiftx+1)
+    nz = np.int(prbshifty*21+128-prbshifty+1)
+    ntheta = 1
+    prbsize = 128  # probe size
+    
+    det = [128, 128]  # detector size
+    model = 'poisson'  # minimization funcitonal (poisson,gaussian)
+    piter = 5000  # ptychography iterations
+    
+        
+    prb = cp.array(dxchange.read_tiff('probereal128.tiff').astype('float32'))[:128,:]+\
+        1j*cp.array(dxchange.read_tiff('probeimag128.tiff').astype('float32'))[:128,:]
 
-    #dxchange.write_tiff(prb.get(),  'prb', overwrite=True)
-    scan = cp.array(pt.scanner3(psi.shape, prbshift,
-                                prbshift, prbsize, spiral=0, randscan=False, save=True))
+    prbfile = h5py.File('/mxn/home/viknik/ptychocg_real/Piller_Step_Recon/Pillar_Step_scan110_s128_i50_recon.h5','r')
+    prb = prbfile['/probes/magnitude'][:128,:].astype('float32')*np.exp(1j*prbfile['/probes/phase'][:128,:].astype('float32'))
+    dxchange.write_tiff(np.angle(prb),'myprobephase')
+    prb = cp.array(prb)
+    
+    
+    scan = cp.array(pt.scanner3([ntheta,nz,n], prbshiftx,
+                                prbshifty, prbsize, spiral=0, randscan=False, save=True))
+    print('scan shape',scan.shape)                                
     # Class gpu solver
     slv = pt.Solver(prb, scan, det, nz, n)
 
@@ -65,20 +55,37 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTSTP, signal_handler)
 
-    # Compute data
+    ######### gen synthetic data
+    prbfile = 'probes-010'
+    prbid = 1
+    amp = dxchange.read_tiff(
+          'data/Cryptomeria_japonica-1024.tif').astype('float32')[512:512+nz,512:512+n]/255.0
+    ang = dxchange.read_tiff(
+          'data/Erdhummel_Bombus_terrestris-1024.tif').astype('float32')[512:512+nz,512:512+n]/255.0*np.pi
+    psi = amp*np.exp(1j*ang)    
+    psi = cp.array(np.expand_dims(psi, axis=0))    
     data = slv.fwd_ptycho_batch(psi)
-    if (noise == True):  # Apply Poisson noise
-        data = np.random.poisson(data).astype('float32')
-    print('probe id '+str(prbid)+" max intensity on the detector: ", np.amax(data))
+    # [x1,x2] = meshgrid(np.arange())
+    # dxchange.write_tiff(data,'tmpdata')
+    
+    ###### or load data??
+    
+    # datafile = h5py.File('/mxn/home/viknik/ptychocg_real/doga_scan_orig.h5','r')
+    # data = cp.array(np.expand_dims(datafile['exchange/data/110'] , axis=0)).astype('float32')
+    # data = data[:,42*10:42*10+1]
+    # print(data.shape)
+    # data = cp.fft.fftshift(data, axes=[2,3])
+    # exit()
+    print("max intensity on the detector: ", np.amax(data))
 
-    # Initial guess
-    init = cp.zeros([1, nz, n], dtype='complex64', order='C')+1 
-    # CG scheme
-    psi = slv.cg_ptycho_batch(data, init, piter, model)
+
+    # CG scheme    
+    init = cp.ones([1, nz, n]).astype('complex64')*0.3
+    prbinit = prb*0+1
+    psi = slv.cg_ptycho_batch(data, init, piter, model, prbinit)
     # Save result
-    name = str(prbfile)+'prbid' + \
-        str(prbid)+'prbshift'+str(prbshift)+str(model)
+    name = str(model)
     dxchange.write_tiff(cp.angle(
-        psi)[0, pad:-pad, pad:-pad].get(),  'psiang/psiang'+name, overwrite=True)
+        psi).get().astype('float32'),  'psiang/psiang'+name, overwrite=False)
     dxchange.write_tiff(
-        cp.abs(psi)[0, pad:-pad, pad:-pad].get(),  'psiamp/psiamp'+name, overwrite=True)
+        cp.abs(psi).get().astype('float32'),  'psiamp/psiamp'+name)

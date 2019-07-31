@@ -68,11 +68,13 @@ void ptychofft::fwd(size_t g_, size_t f_)
 		
 		
 		mul<<<GS3d0,BS3d>>>(g,f,prb,&scanx[i*Ntheta*Nscan],&scany[i*Ntheta*Nscan],Ntheta,Nz,N,Nscan,Nprb,detx,dety);
-		
+	#ifndef CHECKPOS
 		cufftExecC2C(plan2dfwd, (cufftComplex*)g,(cufftComplex*)g,CUFFT_FORWARD);
+	#endif
 		shifts<<<GS3d1,BS3d>>>(g, &shiftx[i*Ntheta*Nscan], &shifty[i*Ntheta*Nscan], Ntheta, Nscan, detx*dety);
 		cudaMemcpy(&((float2*)g_)[i*Ntheta*Nscan*detx*dety],g,Ntheta*Nscan*detx*dety*sizeof(float2),cudaMemcpyDefault);  	
 	}
+	
 }
 
 void ptychofft::adj(size_t f_, size_t g_)

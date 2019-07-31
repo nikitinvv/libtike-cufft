@@ -258,6 +258,10 @@ void __global__ mul(float2 *g, float2 *f, float2 *prb, float *scanx, float *scan
 	int shift = (dety-Nprb)/2*detx+(detx-Nprb)/2;
 	float2 f0 = f[(stx+ix)+(sty+iy)*N+tz*Nz*N];
 	float2 prb0 = prb[ix+iy*Nprb];
+	#ifdef CHECKPOS
+	   prb0.x=1;
+	   prb0.y=0;
+	#endif
 	float c = 1/sqrtf(detx*dety);//fft constant
 	g[shift+ix+iy*detx+ty*detx*dety+tz*detx*dety*Nscan].x = c*prb0.x*f0.x-c*prb0.y*f0.y;
 	g[shift+ix+iy*detx+ty*detx*dety+tz*detx*dety*Nscan].y = c*prb0.x*f0.y+c*prb0.y*f0.x;

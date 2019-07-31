@@ -67,11 +67,11 @@ class Solver(object):
 
     # Line search for the step sizes gamma
     def line_search(self, minf, gamma, u, fu, d, fd):
-        while(minf(u, fu)-minf(u+gamma*d, fu+gamma*fd) < 0 and gamma > 1e-12):
+        while(minf(u, fu)-minf(u+gamma*d, fu+gamma*fd) < 0 and gamma > 1e-32):
             gamma *= 0.5
-        if(gamma <= 1e-12):  # direction not found
-            #print('no direction')
-            gamma = 0
+        # if(gamma <= 1e-20):  # direction not found
+        #     #print('no direction')
+        #     gamma = 0
         return gamma
 
     # Conjugate gradients for ptychography
@@ -96,7 +96,6 @@ class Solver(object):
                     fpsi-cp.sqrt(data)*cp.exp(1j*cp.angle(fpsi)))
             elif model == 'poisson':
                 grad = self.adj_ptycho(fpsi-data*fpsi/(cp.abs(fpsi)**2+1e-32))
-            #grad -= rho*(h - psi + lamd/rho)
             # Dai-Yuan direction
             if i == 0:
                 d = -grad
@@ -108,14 +107,10 @@ class Solver(object):
             fd = self.fwd_ptycho(d)
             gamma = self.line_search(minf, gamma, psi, fpsi, d, fd)
             psi = psi + gamma*d
-            # if(np.mod(i,4)==0):
-            #         print(i,minf(psi,fpsi))
+            if(np.mod(i,16)==0):
+                    print(i,minf(psi,fpsi))
            
-            ##print(gamma,minf(psi, fpsi))
-            # ang = cp.angle(psi)
-            # ang[ang>np.pi]-=2*np.pi
-            # ang[ang<-np.pi]+=2*np.pi
-            # psi = cp.abs(psi)*cp.exp(1j*ang)
+            # print(i,gamma,minf(psi, fpsi))
             end = time.time()
             # print(end - start)
         if(cp.amax(cp.abs(cp.angle(psi))) > 3.14):
