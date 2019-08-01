@@ -6,7 +6,7 @@ import cupy as cp
 import dxchange
 import numpy as np
 import scipy
-import ptychotomo as pt
+import ptychocg as pt
 import time
 import h5py
 if __name__ == "__main__":
@@ -17,37 +17,32 @@ if __name__ == "__main__":
         igpu = np.int(sys.argv[1])
 
     cp.cuda.Device(igpu).use()  # gpu id to use
-    # use cuda managed memory in cupy
     pool = cp.cuda.MemoryPool(cp.cuda.malloc_managed)
     cp.cuda.set_allocator(pool.malloc)
 
     # Model parameters
-    prbshiftx = 300/28.17822322520485  # np.int(0.5667*113)
-    prbshifty = prbshiftx*2/3.0  # np.int(0.5667*113)
+    prbshiftx = 8  # 300/28.17822322520485
+    prbshifty = prbshiftx*2/3.0
     n = np.int(prbshiftx*42+128-prbshiftx+1)
     nz = np.int(prbshifty*21+128-prbshifty+1)
-    ntheta = 1
+    ntheta = 2
     prbsize = 128  # probe size
-    
     det = [128, 128]  # detector size
-    model = 'poisson'  # minimization funcitonal (poisson,gaussian)
-    piter = 5000  # ptychography iterations
-    
-        
-    prb = cp.array(dxchange.read_tiff('probereal128.tiff').astype('float32'))[:128,:]+\
-        1j*cp.array(dxchange.read_tiff('probeimag128.tiff').astype('float32'))[:128,:]
+    model = 'gaussian'  # minimization funcitonal (poisson,gaussian)
+    piter = 100  # ptychography iterations
 
-    prbfile = h5py.File('/mxn/home/viknik/ptychocg_real/Piller_Step_Recon/Pillar_Step_scan110_s128_i50_recon.h5','r')
-    prb = prbfile['/probes/magnitude'][:128,:].astype('float32')*np.exp(1j*prbfile['/probes/phase'][:128,:].astype('float32'))
-    dxchange.write_tiff(np.angle(prb),'myprobephase')
-    prb = cp.array(prb)
-    
-    
-    scan = cp.array(pt.scanner3([ntheta,nz,n], prbshiftx,
+    # take probe
+    prb0 = cp.array(dxchange.read_tiff('probereal128.tiff') + 1j *
+                    dxchange.read_tiff('probeimag128.tiff'))[:128, :].astype('float32')
+    prb = cp.zeros([ntheta, prbsize, prbsize], dtype='complex64')
+    for k in range(ntheta):
+        prb[k] = prb0  # +cp.random.random(prb0.shape)
+    scan = cp.array(pt.scanner3([ntheta, nz, n], prbshiftx,
                                 prbshifty, prbsize, spiral=0, randscan=False, save=True))
-    print('scan shape',scan.shape)                                
+    prbmaxint = cp.max(cp.abs(prb))
+    nscan = scan.shape[2]
     # Class gpu solver
-    slv = pt.Solver(prb, scan, det, nz, n)
+    slv = pt.Solver(prbmaxint, nscan, prbsize, det, ntheta, nz, n)
 
     def signal_handler(sig, frame):  # Free gpu memory after SIGINT, SIGSTSTP
         slv = []
@@ -55,34 +50,22 @@ if __name__ == "__main__":
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTSTP, signal_handler)
 
-    ######### gen synthetic data
-    prbfile = 'probes-010'
-    prbid = 1
+    # gen synthetic data
     amp = dxchange.read_tiff(
-          'data/Cryptomeria_japonica-1024.tif').astype('float32')[512:512+nz,512:512+n]/255.0
+        'data/Cryptomeria_japonica-1024.tif').astype('float32')[512:512+nz, 512:512+n]/255.0
     ang = dxchange.read_tiff(
-          'data/Erdhummel_Bombus_terrestris-1024.tif').astype('float32')[512:512+nz,512:512+n]/255.0*np.pi
-    psi = amp*np.exp(1j*ang)    
-    psi = cp.array(np.expand_dims(psi, axis=0))    
-    data = slv.fwd_ptycho_batch(psi)
-    # [x1,x2] = meshgrid(np.arange())
-    # dxchange.write_tiff(data,'tmpdata')
-    
-    ###### or load data??
-    
-    # datafile = h5py.File('/mxn/home/viknik/ptychocg_real/doga_scan_orig.h5','r')
-    # data = cp.array(np.expand_dims(datafile['exchange/data/110'] , axis=0)).astype('float32')
-    # data = data[:,42*10:42*10+1]
-    # print(data.shape)
-    # data = cp.fft.fftshift(data, axes=[2,3])
-    # exit()
+        'data/Erdhummel_Bombus_terrestris-1024.tif').astype('float32')[512:512+nz, 512:512+n]/255.0*np.pi
+    psi0 = cp.array(amp*np.exp(1j*ang))
+    psi = cp.zeros([ntheta, nz, n], dtype='complex64')
+    for k in range(ntheta):
+        psi[k] = psi0*(k+1)
+    data = slv.fwd_ptycho_batch(psi, scan, prb)
     print("max intensity on the detector: ", np.amax(data))
 
+    # CG scheme
+    init = cp.ones([ntheta, nz, n]).astype('complex64')*0.3
+    psi = slv.cg_ptycho_batch(data, init, scan, prb, piter, model)
 
-    # CG scheme    
-    init = cp.ones([1, nz, n]).astype('complex64')*0.3
-    prbinit = prb*0+1
-    psi = slv.cg_ptycho_batch(data, init, piter, model, prbinit)
     # Save result
     name = str(model)
     dxchange.write_tiff(cp.angle(

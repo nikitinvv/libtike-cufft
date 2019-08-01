@@ -64,9 +64,9 @@ except AttributeError:
 
 
 _radonusfft = Extension(
-    'ptychotomo._radonusfft',
+    'ptychocg._radonusfft',
     swig_opts=['-c++', '-Isrc/include'],
-    sources=['src/ptychotomo/radonusfft.i', 'src/cuda/radonusfft.cu'],
+    sources=['src/ptychocg/radonusfft.i', 'src/cuda/radonusfft.cu'],
     library_dirs=[CUDA['lib']],
     libraries=['cudart','cufft','cublas'],
     # this syntax is specific to this build system
@@ -78,9 +78,9 @@ _radonusfft = Extension(
     include_dirs = [numpy_include, CUDA['include'], 'src/include'],)
 
 _ptychofft = Extension(
-    'ptychotomo._ptychofft',
+    'ptychocg._ptychofft',
     swig_opts=['-c++', '-Isrc/include'],
-    sources=['src/ptychotomo/ptychofft.i', 'src/cuda/ptychofft.cu'],
+    sources=['src/ptychocg/ptychofft.i', 'src/cuda/ptychofft.cu'],
     library_dirs=[CUDA['lib']],
     libraries=['cudart','cufft','cublas'],
     extra_compile_args={'gcc': [],
@@ -145,7 +145,7 @@ setup(
     version='0.1.0',
     # this is necessary so that the swigged python file gets picked up
     package_dir={"": "src"},
-    packages=find_namespace_packages(where='src', include=['ptychotomo*']),
+    packages=find_namespace_packages(where='src', include=['ptychocg*']),
     ext_modules = [_radonusfft, _ptychofft],
     cmdclass={
         'build_py' : build_py,

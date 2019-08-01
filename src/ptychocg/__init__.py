@@ -1,9 +1,9 @@
 from pkg_resources import get_distribution, DistributionNotFound
 
-from ptychotomo.objects import *
-from ptychotomo.ptychofft import *
-from ptychotomo.radonusfft import *
-from ptychotomo.solver import *
+from ptychocg.objects import *
+from ptychocg.ptychofft import *
+from ptychocg.radonusfft import *
+from ptychocg.solver import *
 
 try:
     __version__ = get_distribution(__name__).version

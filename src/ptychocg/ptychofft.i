@@ -38,12 +38,12 @@ class ptychofft
 	cufftHandle plan2dadj;
 
 public:
-	ptychofft(size_t Ntheta, size_t Nz, size_t N, size_t Ntheta0,
+	ptychofft(size_t Ntheta, size_t Nz, size_t N, 
 		size_t Nscan, size_t detx, size_t dety, size_t Nprb);
 	~ptychofft();	
 	void setobj(size_t scan_,  size_t prb_);
-	void fwd(size_t g_, size_t f_);
-	void adj(size_t f_, size_t g_);	
+	void fwd(size_t g_, size_t f_, size_t scan_, size_t prb_);
+	void adj(size_t f_, size_t g_, size_t scan_, size_t prb_);	
 	
 };
 

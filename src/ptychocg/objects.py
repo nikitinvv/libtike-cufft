@@ -15,7 +15,7 @@ def probe(size,maxint=1,rin=0.8, rout=1):
     return prb
 
 # 3d scanner positions
-def scanner3( shape, sx, sy, psize, spiral=0, randscan=False, save=False):
+def scanner3(shape, sx, sy, psize, spiral=0, randscan=False, save=False):
     
     scx, scy = np.meshgrid(
         np.arange(0, shape[2]-psize+1, sx), np.arange(0, shape[1]-psize+1, sy))
