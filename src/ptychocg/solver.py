@@ -6,7 +6,8 @@ import cupy as cp
 import numpy as np
 import dxchange
 import sys
-from ptychotomo.ptychofft import ptychofft
+import signal
+from ptychocg.ptychofft import ptychofft
 
 
 warnings.filterwarnings("ignore")
@@ -34,7 +35,14 @@ class Solver(object):
             self.ptheta, self.nz, self.n, self.nscan, self.ndetx, self.ndety, self.nprb)
         # normalization coefficients
         self.coefptycho = 1 / np.sqrt(prbmaxint)
+        # self.coefptychoq = 1 / np.sqrt(nscan)
         self.coefdata = 1 / (self.ndetx*self.ndety * prbmaxint)
+
+        def signal_handler(sig, frame):  # Free gpu memory after SIGINT, SIGSTSTP
+            slv = []
+            sys.exit(0)
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTSTP, signal_handler)
 
     def mlog(self, psi):
         res = psi.copy()
@@ -71,6 +79,15 @@ class Solver(object):
         res *= self.coefptycho  # normalization
         return res
 
+    # Adjoint ptychography transform (Q*F*)
+    def adj_ptychoq(self, data, scan, psi):
+        res = cp.zeros([self.ptheta, self.nprb, self.nprb],
+                       dtype='complex64', order='C')
+        self.cl_ptycho.adjq(res.data.ptr, data.data.ptr,
+                           scan.data.ptr, psi.data.ptr)
+        res *= self.coefptycho  # normalization
+        return res        
+
     # Line search for the step sizes gamma
     def line_search(self, minf, gamma, u, fu, d, fd):
         while(minf(u, fu)-minf(u+gamma*d, fu+gamma*fd) < 0 and gamma > 1e-20):
@@ -80,53 +97,78 @@ class Solver(object):
         return gamma
 
     # Conjugate gradients for ptychography
-    def cg_ptycho(self, data, init, scan, prb, piter, model):
+    def cg_ptycho(self, data, init, scan, initq, piter, model):
         # minimization functional
         def minf(psi, fpsi):
             if model == 'gaussian':
                 f = cp.linalg.norm(cp.abs(fpsi)-cp.sqrt(data))**2
             elif model == 'poisson':
-                f = cp.sum(cp.abs(fpsi)**2-2*data * self.mlog(cp.abs(fpsi)))
-            
+                f = cp.sum(cp.abs(fpsi)**2-2*data * self.mlog(cp.abs(fpsi)))            
             return f
 
-        psi = init.copy()
-        gamma = 2  # init gamma as a large value
+        psi = init.copy()        
+        prb = initq.copy()        
+        gamma = 0.03# init gamma as a large value
+        gammaq = 1
         for i in range(piter):
             fpsi = self.fwd_ptycho(psi, scan, prb)
-            if model == 'gaussian':
-                grad = self.adj_ptycho(
-                    fpsi-cp.sqrt(data)*cp.exp(1j*cp.angle(fpsi)), scan, prb)
+            if model == 'gaussian':                
+                grad = self.adj_ptycho(fpsi-cp.sqrt(data)*cp.exp(1j*cp.angle(fpsi)), scan, prb)                                
             elif model == 'poisson':
                 grad = self.adj_ptycho(
-                    fpsi-data*fpsi/(cp.abs(fpsi)**2+1e-32), scan, prb)
+                    fpsi-data*fpsi/(cp.abs(fpsi)**2+1e-32), scan, prb)              
             # Dai-Yuan direction
-            if i == 0:
-                d = -grad
-            else:
-                d = -grad+cp.linalg.norm(grad)**2 / \
-                    ((cp.sum(cp.conj(d)*(grad-grad0))))*d
-            grad0 = grad
+            d = -grad                
+            # if i == 0:
+            #     d = -grad                
+            # else:
+            #     d = -grad+cp.linalg.norm(grad)**2 / \
+            #         ((cp.sum(cp.conj(d)*(grad-grad0))))*d                
+            # grad0 = grad
             # line search
             fd = self.fwd_ptycho(d, scan, prb)
-            gamma = self.line_search(minf, gamma, psi, fpsi, d, fd)
+            gamma = self.line_search(minf, gamma, psi, fpsi, d, fd)            
             psi = psi + gamma*d
+
+            # update prb
+            fpsi = self.fwd_ptycho(psi, scan, prb)
+            if model == 'gaussian':
+                tmp = fpsi-cp.sqrt(data)*cp.exp(1j*cp.angle(fpsi))
+                gradq = self.adj_ptychoq(tmp, scan, psi)                                          
+            elif model == 'poisson':
+                grad = self.adj_ptycho(
+                    fpsi-data*fpsi/(cp.abs(fpsi)**2+1e-32), scan, prb)              
+            # # Dai-Yuan direction
+            dq = -gradq
+            # if i == 0:                
+            #     dq = -gradq
+            # else:                
+            #     dq = -gradq+cp.linalg.norm(gradq)**2 / \
+            #         ((cp.sum(cp.conj(dq)*(gradq-gradq0))))*dq
+            # gradq0 = gradq
+            # # line search
+            # fdq = self.fwd_ptycho(psi, scan, dq)
+            # gammaq = self.line_search(minf, gammaq, psi, fpsi, dq, fdq)            
+            prb = prb + gammaq*dq
+            
+            print(gamma,cp.linalg.norm(gammaq*dq),cp.linalg.norm(gamma*d),minf(psi, fpsi))
             
         if(cp.amax(cp.abs(cp.angle(psi))) > 3.14):
             print('possible phase wrap, max computed angle',
                   cp.amax(cp.abs(cp.angle(psi))))
 
-        return psi
+        return psi, prb
 
     # Solve ptycho by angles partitions
-    def cg_ptycho_batch(self, data, init, scan, prb, piter, model):
+    def cg_ptycho_batch(self, data, init, scan, initq, piter, model):
         psi = init.copy()
+        prb = initq.copy()
         for k in range(0, self.ntheta//self.ptheta):
             ids = np.arange(k*self.ptheta, (k+1)*self.ptheta)
             datap = cp.array(data[ids])*self.coefdata  # normalized data
-            psi[ids] = self.cg_ptycho(
+            psi[ids],prb[ids] = self.cg_ptycho(
                 datap, psi[ids], scan[:, ids], prb[ids], piter, model)
-        return psi
+        return psi,prb
 
     
  

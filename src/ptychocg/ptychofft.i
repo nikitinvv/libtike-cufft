@@ -44,6 +44,7 @@ public:
 	void setobj(size_t scan_,  size_t prb_);
 	void fwd(size_t g_, size_t f_, size_t scan_, size_t prb_);
 	void adj(size_t f_, size_t g_, size_t scan_, size_t prb_);	
+	void adjq(size_t prb_, size_t g_, size_t scan_, size_t f_);	
 	
 };
 

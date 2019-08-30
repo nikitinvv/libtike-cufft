@@ -50,6 +50,29 @@ void __global__ mula(float2 *f, float2 *g, float2 *prb, float *scanx, float *sca
 	atomicAdd(&f[(stx+ix)+(sty+iy)*N+tz*Nz*N].y, c*prb0.x*g0.y-c*prb0.y*g0.x);
 }
 
+void __global__ mulaq(float2 *prb, float2 *g, float2 *f, float *scanx, float *scany,
+	int Ntheta, int Nz, int N, int Nscan, int Nprb, int detx, int dety)
+{
+	int tx = blockDim.x * blockIdx.x + threadIdx.x;
+	int ty = blockDim.y * blockIdx.y + threadIdx.y;
+	int tz = blockDim.z * blockIdx.z + threadIdx.z;
+
+	if (tx>=Nprb*Nprb||ty>=Nscan||tz>=Ntheta) return;
+	int ix = tx%Nprb;
+	int iy = tx/Nprb;
+
+	int stx = roundf(scanx[ty+tz*Nscan]);
+	int sty = roundf(scany[ty+tz*Nscan]);
+	if(stx<0||sty<0) return;
+
+	int shift = (dety-Nprb)/2*detx+(detx-Nprb)/2;
+	float2 g0 = g[shift+ix+iy*detx+ty*detx*dety+tz*detx*dety*Nscan];
+	float2 f0 = f[(stx+ix)+(sty+iy)*N+tz*Nz*N];
+	float c = 1/sqrtf(detx*dety)/Nscan;//fft constant
+	atomicAdd(&prb[ix+iy*Nprb+tz*Nprb*Nprb].x, c*f0.x*g0.x+c*f0.y*g0.y);
+	atomicAdd(&prb[ix+iy*Nprb+tz*Nprb*Nprb].y, c*f0.x*g0.y-c*f0.y*g0.x);
+}
+
 void __global__ updatepsi(float2* f, float2* ff, float2* ftmp0, float2* ftmp1,
 	float2* fff, float rho, float gamma, float maxint, int Ntheta, int Nz,int N)
 {
