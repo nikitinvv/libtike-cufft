@@ -117,13 +117,6 @@ void ptychofft::adjq(size_t prb_, size_t g_, size_t scan_, size_t f_)
 	mulaq<<<GS3d0,BS3d>>>(prb,g,f,scanx,scany,Ntheta,Nz,N,Nscan,Nprb,detx,dety);
 
 	cudaMemcpy((float2*)prb_,prb,Ntheta*Nprb*Nprb*sizeof(float2),cudaMemcpyDefault);  	
-	// float nn=0;
-	// float2* prbn=(float2*)prb_;
-	// for (int k=0;k<Ntheta*Nprb*Nprb;k++)
-	// {
-	// 	nn+=prbn[k].x*prbn[k].x;
-	// }
-	// fprintf(stderr, "%f", nn);
 }
 
 

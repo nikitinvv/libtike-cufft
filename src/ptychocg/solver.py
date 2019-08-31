@@ -24,15 +24,16 @@ class Solver(object):
         self.ndety = ndety
         self.nprb = nprb
         self.ptheta = ptheta
-        
+
         # create class for the ptycho transform
         self.cl_ptycho = ptychofft(
             self.ptheta, self.nz, self.n, self.nscan, self.ndetx, self.ndety, self.nprb)
-    
+
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTSTP, self.signal_handler)
 
-    def signal_handler(self, sig, frame):  # Free gpu memory after SIGINT, SIGSTSTP (destructor)
+    # Free gpu memory after SIGINT, SIGSTSTP (destructor)
+    def signal_handler(self, sig, frame):
         self = []
         sys.exit(0)
 
@@ -81,7 +82,7 @@ class Solver(object):
 
     # Conjugate gradients for ptychography
     def cg_ptycho(self, data, psi, scan, prb, piter, model):
-        
+
         # minimization functional
         def minf(psi, fpsi):
             if model == 'gaussian':
