@@ -68,7 +68,7 @@ void __global__ mulaq(float2 *prb, float2 *g, float2 *f, float *scanx, float *sc
 	int shift = (dety-Nprb)/2*detx+(detx-Nprb)/2;
 	float2 g0 = g[shift+ix+iy*detx+ty*detx*dety+tz*detx*dety*Nscan];
 	float2 f0 = f[(stx+ix)+(sty+iy)*N+tz*Nz*N];
-	float c = 1/sqrtf(detx*dety)/Nscan;//fft constant
+	float c = 1/sqrtf(detx*dety);//fft constant
 	atomicAdd(&prb[ix+iy*Nprb+tz*Nprb*Nprb].x, c*f0.x*g0.x+c*f0.y*g0.y);
 	atomicAdd(&prb[ix+iy*Nprb+tz*Nprb*Nprb].y, c*f0.x*g0.y-c*f0.y*g0.x);
 }
