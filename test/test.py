@@ -22,7 +22,7 @@ if __name__ == "__main__":
     n = 600  # horizontal size
     nz = 276  # vertical size
     ntheta = 1  # number of angles (rotations)
-    nscan = 100  # number of scan positions
+    nscan = 5706  # number of scan positions
     nprb = 128  # probe size
     ndetx = 128  # detector x size
     ndety = 128  # detector y size
@@ -88,7 +88,15 @@ if __name__ == "__main__":
     plt.subplot(2, 2, 4)
     plt.imshow(cp.abs(prb[0]).get(), cmap='gray')
     plt.savefig('test/result.png', dpi=300)
+    print("See test/result.png")
 
+
+
+
+
+
+
+    
     # prb = np.zeros([ntheta,prbsize,prbsize],dtype='complex64',order='C')
     # for k in range(0,ntheta):
     #     id = '%.3d' % (k+217)
