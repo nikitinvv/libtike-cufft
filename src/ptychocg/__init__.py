@@ -1,8 +1,6 @@
 from pkg_resources import get_distribution, DistributionNotFound
 
-from ptychocg.objects import *
 from ptychocg.ptychofft import *
-from ptychocg.radonusfft import *
 from ptychocg.solver import *
 
 try:

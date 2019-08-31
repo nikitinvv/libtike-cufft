@@ -27,7 +27,7 @@ def locate_cuda():
     is based on finding 'nvcc' in the PATH.
     """
 
-    conda_cuda = pjoin(os.environ['CONDA_PREFIX'], 'pkgs', 'cudatoolkit-dev')
+    # conda_cuda = pjoin(os.environ['CONDA_PREFIX'], 'pkgs', 'cudatoolkit-dev')
     # first check if the CUDAHOME env variable is in use
     if 'CUDAHOME' in os.environ:
         home = os.environ['CUDAHOME']
@@ -62,20 +62,6 @@ try:
 except AttributeError:
     numpy_include = numpy.get_numpy_include()
 
-
-_radonusfft = Extension(
-    'ptychocg._radonusfft',
-    swig_opts=['-c++', '-Isrc/include'],
-    sources=['src/ptychocg/radonusfft.i', 'src/cuda/radonusfft.cu'],
-    library_dirs=[CUDA['lib']],
-    libraries=['cudart','cufft','cublas'],
-    # this syntax is specific to this build system
-    # we're only going to use certain compiler args with nvcc and not with gcc
-    # the implementation of this trick is in customize_compiler() below
-    extra_compile_args={'gcc': [],
-                        'nvcc': ['--compiler-options', "'-fPIC' '-O3' "]},
-    extra_link_args=['-lgomp'],
-    include_dirs = [numpy_include, CUDA['include'], 'src/include'],)
 
 _ptychofft = Extension(
     'ptychocg._ptychofft',
@@ -146,7 +132,7 @@ setup(
     # this is necessary so that the swigged python file gets picked up
     package_dir={"": "src"},
     packages=find_namespace_packages(where='src', include=['ptychocg*']),
-    ext_modules = [_radonusfft, _ptychofft],
+    ext_modules = [_ptychofft],
     cmdclass={
         'build_py' : build_py,
         'build_ext': custom_build_ext,
