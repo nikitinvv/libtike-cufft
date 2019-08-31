@@ -12,7 +12,7 @@ warnings.filterwarnings("ignore")
 
 
 class Solver(object):
-    def __init__(self, prbmaxint, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta):
+    def __init__(self, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta):
 
         self.nscan = nscan
         self.nprb = nprb
@@ -24,8 +24,7 @@ class Solver(object):
         self.ndety = ndety
         self.nprb = nprb
         self.ptheta = ptheta
-        self.prbmaxint = prbmaxint
-
+        
         # create class for the ptycho transform
         self.cl_ptycho = ptychofft(
             self.ptheta, self.nz, self.n, self.nscan, self.ndetx, self.ndety, self.nprb)
@@ -82,6 +81,7 @@ class Solver(object):
 
     # Conjugate gradients for ptychography
     def cg_ptycho(self, data, psi, scan, prb, piter, model):
+        
         # minimization functional
         def minf(psi, fpsi):
             if model == 'gaussian':
@@ -92,7 +92,7 @@ class Solver(object):
 
         for i in range(piter):
             # initial gradient steps
-            gammapsi = 1/(self.prbmaxint**2)
+            gammapsi = 1/(cp.max(cp.abs(prb)**2))
             gammaprb = 1
 
             # 1) CG update psi with fixed prb
