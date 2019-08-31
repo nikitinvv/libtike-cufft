@@ -28,8 +28,8 @@ if __name__ == "__main__":
     ndety = 128  # detector y size
 
     # Reconstrucion parameters
-    model = 'poisson'  # minimization funcitonal (poisson,gaussian)
-    piter = 100  # ptychography iterations
+    model = 'gaussian'  # minimization funcitonal (poisson,gaussian)
+    piter = 512  # ptychography iterations
     ptheta = 1  # number of angular partitions for simultaneous processing in ptychography
 
     # read correct probe

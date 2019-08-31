@@ -139,7 +139,8 @@ class Solver(object):
             # update prb
             prb = prb + gammaprb*dprb
 
-            print(i, gammapsi, gammaprb, minf(psi, fpsi))
+            if (np.mod(i,16)==0):
+                print("%d) gamma psi %.3e, gamma prb %.3e, residual %.3e" % (i,gammapsi, gammaprb, minf(psi, fpsi)))
 
         if(cp.amax(cp.abs(cp.angle(psi))) > 3.14):
             print('possible phase wrap, max computed angle',
