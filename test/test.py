@@ -22,7 +22,7 @@ if __name__ == "__main__":
     n = 600  # horizontal size
     nz = 276  # vertical size
     ntheta = 1  # number of angles (rotations)
-    nscan = 5706  # number of scan positions
+    nscan = 1000  # number of scan positions
     nprb = 128  # probe size
     ndetx = 128  # detector x size
     ndety = 128  # detector y size
