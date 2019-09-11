@@ -12,4 +12,4 @@ cupy - for GPU acceleration of linear algebra operations in iterative schemes. S
 conda install -c anaconda cupy
 
 ## Tests
-Run python test/test.py
+Run python test.py in tests/ folder

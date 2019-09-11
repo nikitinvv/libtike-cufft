@@ -1,19 +1,14 @@
 """Module for 2D ptychography."""
 
-import warnings
-
 import cupy as cp
 import numpy as np
 import dxchange
 import sys
 import signal
 from ptychocg.ptychofft import ptychofft
-warnings.filterwarnings("ignore")
-
 
 class Solver(object):
     def __init__(self, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta):
-
         self.nscan = nscan
         self.nprb = nprb
         self.ntheta = ntheta
@@ -64,14 +59,6 @@ class Solver(object):
                            scan.data.ptr, prb.data.ptr)
         return res
 
-    # Adjoint ptychography probe transform (O*F*), object is fixed
-    def adj_ptychoq(self, data, scan, psi):
-        res = cp.zeros([self.ptheta, self.nprb, self.nprb],
-                       dtype='complex64', order='C')
-        self.cl_ptycho.adjq(res.data.ptr, data.data.ptr,
-                            scan.data.ptr, psi.data.ptr)
-        return res
-
     # Line search for the step sizes gamma
     def line_search(self, minf, gamma, u, fu, d, fd):
         while(minf(u, fu)-minf(u+gamma*d, fu+gamma*fd) < 0 and gamma > 1e-32):
@@ -82,7 +69,6 @@ class Solver(object):
 
     # Conjugate gradients for ptychography
     def cg_ptycho(self, data, psi, scan, prb, piter, model):
-
         # minimization functional
         def minf(psi, fpsi):
             if model == 'gaussian':
@@ -91,12 +77,11 @@ class Solver(object):
                 f = cp.sum(cp.abs(fpsi)**2-2*data * cp.log(cp.abs(fpsi)+1e-32))
             return f
 
-        for i in range(piter):
-            # initial gradient steps
-            gammapsi = 1/(cp.max(cp.abs(prb)**2))
-            gammaprb = 1
+        # initial gradient
+        gammapsi = 1/(cp.max(cp.abs(prb)**2))
 
-            # 1) CG update psi with fixed prb
+        for i in range(piter):
+            # CG update psi with fixed prb
             fpsi = self.fwd_ptycho(psi, scan, prb)
             if model == 'gaussian':
                 gradpsi = self.adj_ptycho(
@@ -117,45 +102,23 @@ class Solver(object):
             # update psi
             psi = psi + gammapsi*dpsi
 
-            # 2) CG update prb with fixed psi
-            fpsi = self.fwd_ptycho(psi, scan, prb)
-            if model == 'gaussian':
-                gradprb = self.adj_ptychoq(
-                    fpsi-cp.sqrt(data)*cp.exp(1j*cp.angle(fpsi)), scan, psi)/self.nscan
-            elif model == 'poisson':
-                gradprb = self.adj_ptychoq(
-                    fpsi-data*fpsi/(cp.abs(fpsi)**2+1e-32), scan, psi)/self.nscan
-            # Dai-Yuan direction
-            if i == 0:
-                dprb = -gradprb
-            else:
-                dprb = -gradprb+cp.linalg.norm(gradprb)**2 / \
-                    ((cp.sum(cp.conj(dprb)*(gradprb-gradprb0))))*dprb
-            gradprb0 = gradprb
-            # line search
-            fdprb = self.fwd_ptycho(psi, scan, dprb)
-            gammaprb = self.line_search(
-                minf, gammaprb, psi, fpsi, psi, fdprb)
-            # update prb
-            prb = prb + gammaprb*dprb
-
-            if (np.mod(i,16)==0):
-                print("%d) gamma psi %.3e, gamma prb %.3e, residual %.3e" % (i,gammapsi, gammaprb, minf(psi, fpsi)))
+            if (np.mod(i, 16) == 0):
+                print("%d) gamma psi %.3e, min functional %.10e" %
+                      (i, gammapsi, minf(psi, fpsi)))
 
         if(cp.amax(cp.abs(cp.angle(psi))) > 3.14):
             print('possible phase wrap, max computed angle',
                   cp.amax(cp.abs(cp.angle(psi))))
 
-        return psi, prb
+        return psi
 
-    # Solve ptycho by angles partitions
-    def cg_ptycho_batch(self, data, initpsi, scan, initprb, piter, model):
+    # CG ptycho-solver
+    def cg_ptycho_batch(self, data, initpsi, scan, prb, piter, model):
         psi = initpsi.copy()
-        prb = initprb.copy()
-
+        # Solve ptycho by angle partitions (copying parts of the data to gpu)
         for k in range(0, self.ntheta//self.ptheta):
             ids = np.arange(k*self.ptheta, (k+1)*self.ptheta)
             datap = cp.array(data[ids])
-            psi[ids], prb[ids] = self.cg_ptycho(
+            psi[ids] = self.cg_ptycho(
                 datap, psi[ids], scan[:, ids], prb[ids], piter, model)
-        return psi, prb
+        return psi

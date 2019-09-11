@@ -15,10 +15,10 @@ ptychofft::ptychofft(size_t Ntheta_, size_t Nz_, size_t N_,
 
 	cudaMalloc((void**)&f,Ntheta*Nz*N*sizeof(float2));
 	cudaMalloc((void**)&g,Ntheta*Nscan*detx*dety*sizeof(float2));
-	cudaMalloc((void**)&scanx,1*Ntheta*Nscan*sizeof(float));
-	cudaMalloc((void**)&scany,1*Ntheta*Nscan*sizeof(float));
-	cudaMalloc((void**)&shiftx,1*Ntheta*Nscan*sizeof(float2));
-	cudaMalloc((void**)&shifty,1*Ntheta*Nscan*sizeof(float2));
+	cudaMalloc((void**)&scanx,Ntheta*Nscan*sizeof(float));
+	cudaMalloc((void**)&scany,Ntheta*Nscan*sizeof(float));
+	cudaMalloc((void**)&shiftx,Ntheta*Nscan*sizeof(float2));
+	cudaMalloc((void**)&shifty,Ntheta*Nscan*sizeof(float2));
 	cudaMalloc((void**)&prb,Ntheta*Nprb*Nprb*sizeof(float2));
 	cudaMalloc((void**)&data,Ntheta*Nscan*detx*dety*sizeof(float));	
 
@@ -47,12 +47,12 @@ ptychofft::~ptychofft()
 
 void ptychofft::setobj(size_t scan_, size_t prb_)
 {
-	cudaMemcpy(scanx,&((float*)scan_)[0],1*Ntheta*Nscan*sizeof(float),cudaMemcpyDefault);  	
-	cudaMemcpy(scany,&((float*)scan_)[1*Ntheta*Nscan],1*Ntheta*Nscan*sizeof(float),cudaMemcpyDefault);  	
+	cudaMemcpy(scanx,&((float*)scan_)[0],Ntheta*Nscan*sizeof(float),cudaMemcpyDefault);  	
+	cudaMemcpy(scany,&((float*)scan_)[Ntheta*Nscan],Ntheta*Nscan*sizeof(float),cudaMemcpyDefault);  	
 	cudaMemcpy(prb,(float2*)prb_,Nprb*Nprb*sizeof(float2),cudaMemcpyDefault);
 	dim3 BS2d(32,32);
-	dim3 GS2d0(ceil(Nscan/(float)BS2d.x),ceil(1*Ntheta/(float)BS2d.y));
-	takeshifts<<<GS2d0,BS2d>>>(shiftx,shifty,scanx,scany,1*Ntheta,Nscan);	
+	dim3 GS2d0(ceil(Nscan/(float)BS2d.x),ceil(Ntheta/(float)BS2d.y));
+	takeshifts<<<GS2d0,BS2d>>>(shiftx,shifty,scanx,scany,Ntheta,Nscan);	
 }
 
 void ptychofft::fwd(size_t g_, size_t f_, size_t scan_, size_t prb_)
