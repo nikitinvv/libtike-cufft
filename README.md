@@ -1,5 +1,5 @@
 # PtychoCG
-Conjugate gradient solver for 2d ptychography with probe retrieval
+Conjugate gradient solver for 2d ptychography
 
 ## Installation from source
 export CUDAHOME=path-to-cuda
