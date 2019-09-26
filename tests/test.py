@@ -1,9 +1,8 @@
-import os
-import sys
+import numpy as np
 import cupy as cp
 import dxchange
-import numpy as np
-import h5py
+from scipy import ndimage
+import sys
 import ptychocg as pt
 
 if __name__ == "__main__":
@@ -21,15 +20,15 @@ if __name__ == "__main__":
     # sizes
     n = 600  # horizontal size
     nz = 276  # vertical size
-    ntheta = 1  # number of angles (rotations)
-    nscan = 1000  # number of scan positions (max 5706 for the test data)
+    ntheta = 1  # number of projections
+    nscan = 5706  # number of scan positions [max 5706 for the data example]
     nprb = 128  # probe size
     ndetx = 128  # detector x size
     ndety = 128  # detector y size
 
     # Reconstrucion parameters
     model = 'gaussian'  # minimization funcitonal (poisson,gaussian)
-    piter = 128  # ptychography iterations
+    piter = 32  # ptychography iterations
     ptheta = 1  # number of angular partitions for simultaneous processing in ptychography
 
     # read probe
@@ -56,19 +55,17 @@ if __name__ == "__main__":
     slv = pt.Solver(nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta)
     # Compute data
     data = slv.fwd_ptycho_batch(psi0, scan, prb)
-
+    
     # Initial guess
-    psi = cp.ones([ntheta, nz, n], dtype='complex64')
-
-    # CG solver
-    psi = slv.cg_ptycho_batch(data, psi, scan, prb, piter, model)
-
+    psi = cp.ones([ntheta, nz, n], dtype='complex64')    
+    
+    psi, prb = slv.cg_ptycho_batch(data, psi, scan, prb, piter, model)
+    
     # Save result
     name = str(model)+str(piter)
     dxchange.write_tiff(cp.angle(psi).get(),
                         'rec/psiang'+name, overwrite=True)
     dxchange.write_tiff(cp.abs(psi).get(),  'rec/psiamp'+name, overwrite=True)
-
     # plot result
     import matplotlib.pyplot as plt
     plt.figure(figsize=(11, 7))
