@@ -31,6 +31,7 @@ class ptychofft
 	float2 *shifty; // y shift (-1,1) of scan positions to nearest integer
 
 	cufftHandle plan2d; // 2D FFT plan
+	cufftHandle plan2dshift; // 2D FFT plan for the shift in the frequency domain
 
 	dim3 BS3d; // 3d thread block on GPU
 

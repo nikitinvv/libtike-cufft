@@ -174,7 +174,7 @@ class Solver(object):
 
     def cg_ptycho_batch(self, data, initpsi, scan, initprb, piter, model):
         """Solve ptycho by angles partitions."""
-        assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
+        assert initprb.ndim == 3, "prb needs 3 dimensions, not %d" % initprb.ndim
 
         psi = initpsi.copy()
         prb = initprb.copy()
