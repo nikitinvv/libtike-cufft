@@ -1,5 +1,6 @@
 """Module for 2D ptychography."""
 
+import warnings
 import numpy as np
 import cupy as cp
 import sys
@@ -139,9 +140,10 @@ class Solver(object):
                 print("%d) gamma psi %.3e, residual %.3e" %
                       (i, gammapsi, minf(psi, fpsi)))
 
-        if(cp.amax(cp.abs(cp.angle(psi))) > 3.14):
-            print('possible phase wrap, max computed angle',
-                  cp.amax(cp.abs(cp.angle(psi))))
+        max_computed_angle = cp.amax(cp.abs(cp.angle(psi)))
+        if max_computed_angle > 3.14:
+            warnings.warn("Possible phase wrap. Max angle is %6f."
+                          % max_computed_angle)
 
         return psi, prb
 
