@@ -86,7 +86,7 @@ void __global__ mulaprobe(float2 *f, float2 *g, float2 *prb, float *scanx, float
 	float c = 1 / sqrtf(Ndetx * Ndety);														  //fft constant
 	// multilication in complex variables with simultaneous writing to the object array
 	g[shift + ix + iy * Ndetx + ty * Ndetx * Ndety + tz * Ndetx * Ndety * Nscan].x = c * prb0.x * g0.x + c * prb0.y * g0.y;
-	g[shift + ix + iy * Ndetx + ty * Ndetx * Ndety + tz * Ndetx * Ndety * Nscan].y =  c * prb0.x * g0.y - c * prb0.y * g0.x;
+	g[shift + ix + iy * Ndetx + ty * Ndetx * Ndety + tz * Ndetx * Ndety * Nscan].y = c * prb0.x * g0.y - c * prb0.y * g0.x;
 }
 
 // simultaneous writing to the object array
@@ -135,7 +135,7 @@ void __global__ takeshifts(float2 *shiftx, float2 *shifty, float *scanx, float *
 }
 
 // perform shifts in the frequency domain by multiplication with exp(dir*1j dx),exp(dir*j dy), dir==1 - fowrward, dir==-1 backward
-void __global__ shifts(float2 *f, float2 *shiftx, float2 *shifty, int dir, int Ntheta, int Nscan, int NdetxNdety)
+void __global__ shifts(float2 *f, float2 *shiftx, float2 *shifty, int dir, int Ntheta, int Nscan, int NdetxNdety, int NprbNprb)
 {
 	int tx = blockDim.x * blockIdx.x + threadIdx.x;
 	int ty = blockDim.y * blockIdx.y + threadIdx.y;
@@ -152,12 +152,10 @@ void __global__ shifts(float2 *f, float2 *shiftx, float2 *shifty, int dir, int N
 	f[ind].x = f0.x * shiftx0.x - f0.y * shiftx0.y * dir;
 	f[ind].y = f0.y * shiftx0.x + f0.x * shiftx0.y * dir;
 	f0 = f[ind];
-	float c = 1 / (float)(NdetxNdety);	//fft constant, Nprb? todo
-	f[ind].x = c*f0.x * shifty0.x - c*f0.y * shifty0.y * dir;
-	f[ind].y = c*f0.y * shifty0.x + c*f0.x * shifty0.y * dir;
+	float c = 1 / (float)(NprbNprb); //fft constant
+	f[ind].x = c * f0.x * shifty0.x - c * f0.y * shifty0.y * dir;
+	f[ind].y = c * f0.y * shifty0.x + c * f0.x * shifty0.y * dir;
 }
-
-
 
 // For probe retrieval
 
