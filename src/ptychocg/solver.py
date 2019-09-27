@@ -9,8 +9,29 @@ from ptychocg.ptychofft import ptychofft
 
 
 class Solver(object):
-    def __init__(self, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta):
+    """Ptychographic solver instance.
 
+    Manages GPU memory for solving the ptychography problem.
+
+    Attribtues
+    ----------
+    nscan : int
+        The number of scan positions at each angular view.
+    nprb : int
+        The pixel width and height of the probe illumination.
+    ndetx, ndety : int
+        The pixel width and height of the detector.
+    ntheta : int
+        The number of angular partitions of the data.
+    n, nz : int
+        The pixel width and height of the reconstructed grid.
+    ptheta : int
+        The number of angular partitions to process together
+        simultaneously.
+
+    """
+    def __init__(self, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta):
+        """Please see help(Solver) for more info."""
         self.n = n  # object horizontal size
         self.nz = nz  # object vertical size
         self.ntheta = ntheta  # number of projections
@@ -27,21 +48,21 @@ class Solver(object):
         signal.signal(signal.SIGINT, self.signal_handler)
         signal.signal(signal.SIGTSTP, self.signal_handler)
 
-    # Free gpu memory after SIGINT, SIGSTSTP (destructor)
     def signal_handler(self, sig, frame):
+        """Free gpu memory after SIGINT, SIGSTSTP (destructor)"""
         self = []
         sys.exit(0)
 
-    # Ptychography transform (FQ)
     def fwd_ptycho(self, psi, scan, prb):
+        """Ptychography transform (FQ)"""
         res = cp.zeros([self.ptheta, self.nscan, self.ndety,
                         self.ndetx], dtype='complex64')
         self.cl_ptycho.fwd(res.data.ptr, psi.data.ptr,
                            scan.data.ptr, prb.data.ptr)  # C++ wrapper, send pointers to GPU arrays
         return res
 
-    # Batch of Ptychography transform (FQ)
     def fwd_ptycho_batch(self, psi, scan, prb):
+        """Batch of Ptychography transform (FQ)"""
         data = np.zeros([self.ntheta, self.nscan, self.ndety,
                          self.ndetx], dtype='float32')
         for k in range(0, self.ntheta//self.ptheta):  # angle partitions in ptychography
@@ -51,8 +72,8 @@ class Solver(object):
             data[ids] = data0.get()  # copy to CPU
         return data
 
-    # Adjoint ptychography transform (Q*F*)
     def adj_ptycho(self, data, scan, prb):
+        """Adjoint ptychography transform (Q*F*)"""
         res = cp.zeros([self.ptheta, self.nz, self.n],
                        dtype='complex64')
         flg = 0  # compute adjoint operator with respect to object
@@ -60,8 +81,8 @@ class Solver(object):
                            scan.data.ptr, prb.data.ptr, flg)  # C++ wrapper, send pointers to GPU arrays
         return res
 
-    # Adjoint ptychography probe transform (O*F*), object is fixed
     def adj_ptycho_prb(self, data, scan, psi):
+        """Adjoint ptychography probe transform (O*F*), object is fixed"""
         res = cp.zeros([self.ptheta, self.nprb, self.nprb],
                        dtype='complex64')
         flg = 1  # compute adjoint operator with respect to probe
@@ -69,8 +90,8 @@ class Solver(object):
                             scan.data.ptr, psi.data.ptr, flg)  # C++ wrapper, send pointers to GPU arrays
         return res
 
-    # Line search for the step sizes gamma
     def line_search(self, minf, gamma, u, fu, d, fd):
+        """Line search for the step sizes gamma"""
         while(minf(u, fu)-minf(u+gamma*d, fu+gamma*fd) < 0 and gamma > 1e-32):
             gamma *= 0.5
         if(gamma <= 1e-32):  # direction not found
@@ -78,8 +99,8 @@ class Solver(object):
             warnings.warn("Line search failed for conjugate gradient.")
         return gamma
 
-    # Conjugate gradients for ptychography
     def cg_ptycho(self, data, psi, scan, prb, piter, model):
+        """Conjugate gradients for ptychography"""
         assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
         # minimization functional
         def minf(psi, fpsi):
@@ -93,6 +114,9 @@ class Solver(object):
         gammapsi = 1 / (cp.max(cp.abs(prb)**2))
         assert cp.isfinite(gammapsi), "The probe amplitude cannot be zero."
         # gammaprb = 1 # # under development
+
+        print("# congujate gradient parameters\n"
+              "iteration, step size, function min")  # csv column headers
         for i in range(piter):
             # 1) CG update psi with fixed prb
             fpsi = self.fwd_ptycho(psi, scan, prb)
@@ -139,18 +163,19 @@ class Solver(object):
             # prb = prb + gammaprb*dprb
 
             if (np.mod(i, 1) == 0):
-                print("%d) gamma psi %.3e, residual %.3e" %
-                      (i, gammapsi, minf(psi, fpsi)))
+                print("%4d, %.3e, %.3e" % (i, gammapsi, minf(psi, fpsi)))
 
-        if(cp.amax(cp.abs(cp.angle(psi))) > 3.14):
-            print('possible phase wrap, max computed angle',
-                  cp.amax(cp.abs(cp.angle(psi))))
+        max_computed_angle = cp.amax(cp.abs(cp.angle(psi)))
+        if max_computed_angle > 3.14:
+            warnings.warn("Possible phase wrap. Max angle is %6f."
+                          % max_computed_angle)
 
         return psi, prb
 
-    # Solve ptycho by angles partitions
     def cg_ptycho_batch(self, data, initpsi, scan, initprb, piter, model):
+        """Solve ptycho by angles partitions."""
         assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
+
         psi = initpsi.copy()
         prb = initprb.copy()
 
