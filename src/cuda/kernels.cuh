@@ -51,7 +51,7 @@ void __global__ mulprobe(float2 *g, float2 *f, float2 *prb, float *scanx, float 
 
 	float2 prb0 = prb[ix + iy * Nprb + tz * Nprb * Nprb];									  // probe voxel for multiplication
 	float2 g0 = g[shift + ix + iy * Ndetx + ty * Ndetx * Ndety + tz * Ndetx * Ndety * Nscan]; // object voxel for multiplication
-	float c = 1 / sqrtf(Ndetx * Ndety);						  //fft constant
+	float c = 1 / sqrtf(Ndetx * Ndety);														  //fft constant
 
 	// multilication in complex variables
 	g[shift + ix + iy * Ndetx + ty * Ndetx * Ndety + tz * Ndetx * Ndety * Nscan].x = c * prb0.x * g0.x - c * prb0.y * g0.y;
@@ -83,7 +83,7 @@ void __global__ mulaprobe(float2 *f, float2 *g, float2 *prb, float *scanx, float
 
 	float2 g0 = g[shift + ix + iy * Ndetx + ty * Ndetx * Ndety + tz * Ndetx * Ndety * Nscan]; // data voxel for multiplication
 	float2 prb0 = prb[ix + iy * Nprb + tz * Nprb * Nprb];									  // probe voxel for multiplication
-	float c = 1 / sqrtf(Ndetx * Ndety);						  //fft constant
+	float c = 1 / sqrtf(Ndetx * Ndety);														  //fft constant
 	// multilication in complex variables with simultaneous writing to the object array
 	g[shift + ix + iy * Ndetx + ty * Ndetx * Ndety + tz * Ndetx * Ndety * Nscan].x = c * prb0.x * g0.x + c * prb0.y * g0.y;
 	g[shift + ix + iy * Ndetx + ty * Ndetx * Ndety + tz * Ndetx * Ndety * Nscan].y = c * prb0.x * g0.y - c * prb0.y * g0.x;

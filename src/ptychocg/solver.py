@@ -30,6 +30,7 @@ class Solver(object):
         simultaneously.
 
     """
+
     def __init__(self, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta):
         """Please see help(Solver) for more info."""
         self.n = n  # object horizontal size
@@ -103,6 +104,7 @@ class Solver(object):
         """Conjugate gradients for ptychography"""
         assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
         # minimization functional
+
         def minf(psi, fpsi):
             if model == 'gaussian':
                 f = cp.linalg.norm(cp.abs(fpsi)-cp.sqrt(data))**2
