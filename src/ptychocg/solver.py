@@ -135,7 +135,7 @@ class Solver(object):
             # # update prb
             # prb = prb + gammaprb*dprb
 
-            if (np.mod(i, 4) == 0):
+            if (np.mod(i, 1) == 0):
                 print("%d) gamma psi %.3e, residual %.3e" %
                       (i, gammapsi, minf(psi, fpsi)))
 

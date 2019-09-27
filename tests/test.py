@@ -55,6 +55,7 @@ if __name__ == "__main__":
     slv = pt.Solver(nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta)
     # Compute data
     data = slv.fwd_ptycho_batch(psi0, scan, prb)
+    dxchange.write_tiff(data,'data')
     
     # Initial guess
     psi = cp.ones([ntheta, nz, n], dtype='complex64')    
