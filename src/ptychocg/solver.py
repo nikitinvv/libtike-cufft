@@ -91,6 +91,9 @@ class Solver(object):
         # initial gradient steps
         gammapsi = 1
         # gammaprb = 1 # # under development
+
+        print("# congujate gradient parameters\n"
+              "iteration, step size, function min")  # csv column headers
         for i in range(piter):
             # 1) CG update psi with fixed prb
             fpsi = self.fwd_ptycho(psi, scan, prb)
@@ -137,8 +140,7 @@ class Solver(object):
             # prb = prb + gammaprb*dprb
 
             if (np.mod(i, 1) == 0):
-                print("%d) gamma psi %.3e, residual %.3e" %
-                      (i, gammapsi, minf(psi, fpsi)))
+                print("%4d, %.3e, %.3e" % (i, gammapsi, minf(psi, fpsi)))
 
         max_computed_angle = cp.amax(cp.abs(cp.angle(psi)))
         if max_computed_angle > 3.14:
