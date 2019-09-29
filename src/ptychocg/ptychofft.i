@@ -49,6 +49,5 @@ public:
 	// forward ptychography operator FQ
 	void fwd(size_t g_, size_t f_, size_t scan_, size_t prb_);
 	// adjoint ptychography operator with respect to object (fgl==0) f = Q*F*g, or probe (flg==1) prb = Q*F*g
-	void adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg);
-	// adjoint ptychography operator Q*F* with respect to probe	
+	void adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg);	
 };
