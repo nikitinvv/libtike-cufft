@@ -21,23 +21,24 @@ if __name__ == "__main__":
     n = 600  # horizontal size
     nz = 276  # vertical size
     ntheta = 1  # number of projections
-    nscan = 5706  # number of scan positions [max 5706 for the data example]
+    nscan = 1000 # number of scan positions [max 5706 for the data example]
     nprb = 128  # probe size
     ndetx = 128  # detector x size
     ndety = 128  # detector y size
 
     # Reconstrucion parameters
     model = 'gaussian'  # minimization funcitonal (poisson,gaussian)
-    piter = 32  # ptychography iterations
+    piter = 64  # ptychography iterations
+    piiter = 4  # inner ptychography iterations (for each object retrieval and probe retrieval subproblems)
     ptheta = 1  # number of angular partitions for simultaneous processing in ptychography
 
     # read probe
-    prb = cp.ones([ntheta, nprb, nprb], dtype='complex64')
+    prb0 = cp.zeros([ntheta, nprb, nprb], dtype='complex64')
     prbamp = cp.array(dxchange.read_tiff(
         'model/prbamp.tiff').astype('float32'))
     prbang = cp.array(dxchange.read_tiff(
         'model/prbang.tiff').astype('float32'))
-    prb[0] = prbamp*cp.exp(1j*prbang)
+    prb0[0] = prbamp*cp.exp(1j*prbang)
 
     # read scan positions
     scan = cp.ones([2, ntheta, nscan], dtype='float32')
@@ -54,13 +55,13 @@ if __name__ == "__main__":
     # Class gpu solver
     slv = pt.Solver(nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta)
     # Compute data
-    data = slv.fwd_ptycho_batch(psi0, scan, prb)
+    data = slv.fwd_ptycho_batch(psi0, scan, prb0)    
     dxchange.write_tiff(data,'data')
     
     # Initial guess
     psi = cp.ones([ntheta, nz, n], dtype='complex64')    
-    
-    psi, prb = slv.cg_ptycho_batch(data, psi, scan, prb, piter, model)
+    prb = prb0.copy().swapaxes(1,2)#*0+1
+    psi, prb = slv.cg_ptycho_batch(data, psi, scan, prb, piter, piiter, model)
     
     # Save result
     name = str(model)+str(piter)
@@ -80,14 +81,30 @@ if __name__ == "__main__":
     plt.subplot(2, 2, 3)
     plt.title('object phase')
     plt.imshow(cp.angle(psi[0]).get(), cmap='gray')
-    plt.subplot(2, 2, 4)
-    plt.title('object amplitude')
-    plt.imshow(cp.abs(psi[0]).get(), cmap='gray')
+    plt.subplot(2, 4, 1)
+    plt.title('diff prb amplitude')
+    plt.imshow(cp.angle(prb0[0]).get(), cmap='gray')
+    plt.colorbar()
+    plt.subplot(2, 4, 2)
+    plt.title('diff prb amplitude')    
+    plt.imshow(cp.abs(prb0[0]).get(), cmap='gray')
+    plt.colorbar()
     plt.subplot(2, 4, 3)
     plt.title('probe phase')
     plt.imshow(cp.angle(prb[0]).get(), cmap='gray')
+    plt.colorbar()
     plt.subplot(2, 4, 4)
     plt.title('probe amplitude')
     plt.imshow(cp.abs(prb[0]).get(), cmap='gray')
+    plt.colorbar()
+    plt.subplot(2, 4, 7)
+    plt.title('diff prb amplitude')
+    plt.imshow(cp.angle(prb0[0]-prb[0]).get(), cmap='gray')
+    plt.colorbar()
+    plt.subplot(2, 4, 8)
+    plt.title('diff prb amplitude')
+    plt.imshow(cp.abs(prb0[0]-prb[0]).get(), cmap='gray')
+    plt.colorbar()
     plt.savefig('result.png', dpi=600)
     print("See result.png and tiff files in rec/ folder")
+    
