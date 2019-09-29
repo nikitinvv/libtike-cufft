@@ -18,7 +18,7 @@ class ptychofft
 	float2 *shiftx; // x shift (-1,1) of scan positions to nearest integer
 	float2 *shifty; // y shift (-1,1) of scan positions to nearest integer
 
-	cufftHandle plan2d; // 2D FFT plan
+	cufftHandle plan2d;		 // 2D FFT plan
 	cufftHandle plan2dshift; // 2D FFT plan for the shift in the frequency domain
 
 	dim3 BS3d; // 3d thread block on GPU
@@ -37,6 +37,5 @@ public:
 	// forward ptychography operator FQ
 	void fwd(size_t g_, size_t f_, size_t scan_, size_t prb_);
 	// adjoint ptychography operator with respect to object (fgl==0) f = Q*F*g, or probe (flg==1) prb = Q*F*g
-	void adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg);
-	// adjoint ptychography operator Q*F* with respect to probe
+	void adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg);	
 };

@@ -81,14 +81,17 @@ void ptychofft::fwd(size_t g_, size_t f_, size_t scan_, size_t prb_)
 
 	// take part for the probe multiplication and shift it via FFT
 	takepart<<<GS3d0, BS3d>>>(g, f, prb, scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
+
+	//// SHIFT start
 	// Fourier transform
 	cufftExecC2C(plan2dshift, (cufftComplex *)g, (cufftComplex *)g, CUFFT_FORWARD);
 	// compute exp(1j dx),exp(1j dy) where dx,dy are in (-1,1) and correspond to shifts to nearest integer
-	takeshifts<<<GS3d2, BS3d>>>(shiftx, shifty, scanx, scany, Ntheta, Nscan);
+	takeshifts<<<GS3d2, BS3d>>>(shiftx, shifty, scanx, scany, 1, Ntheta, Nscan);
 	// perform shifts in the frequency domain by multiplication with exp(1j dx),exp(1j dy)
-	shifts<<<GS3d1, BS3d>>>(g, shiftx, shifty, 1, Ntheta, Nscan, Ndetx * Ndety, Nprb * Nprb);
+	shifts<<<GS3d1, BS3d>>>(g, shiftx, shifty, Ntheta, Nscan, Ndetx * Ndety, Nprb*Nprb);
 	// inverse Fourier transform
 	cufftExecC2C(plan2dshift, (cufftComplex *)g, (cufftComplex *)g, CUFFT_INVERSE);
+	//// SHIFT end
 
 	// probe multiplication of the object array
 	mulprobe<<<GS3d0, BS3d>>>(g, f, prb, scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
@@ -103,32 +106,48 @@ void ptychofft::fwd(size_t g_, size_t f_, size_t scan_, size_t prb_)
 void ptychofft::adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg)
 {
 	// copy arrays to GPU
+	cudaMemcpy(f, (float2 *)f_, Ntheta * Nz * N * sizeof(float2),cudaMemcpyDefault);	
 	cudaMemcpy(g, (float2 *)g_, Ntheta * Nscan * Ndetx * Ndety * sizeof(float2), cudaMemcpyDefault);
 	cudaMemcpy(scanx, &((float *)scan_)[0], Ntheta * Nscan * sizeof(float), cudaMemcpyDefault);
 	cudaMemcpy(scany, &((float *)scan_)[Ntheta * Nscan], Ntheta * Nscan * sizeof(float), cudaMemcpyDefault);
 	cudaMemcpy(prb, (float2 *)prb_, Ntheta * Nprb * Nprb * sizeof(float2), cudaMemcpyDefault);
-
-	// init object as 0
-	cudaMemset(f, 0, Ntheta * Nz * N * sizeof(float2));
+	
 	// inverse Fourier transform
 	cufftExecC2C(plan2d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_INVERSE);
-	if (flg == 0)
+	if (flg == 0)// adjoint probe multiplication operator
 	{
-		// adjoint probe multiplication and simultaneous writing to the object array
 		mulaprobe<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
-		// shift the part via FFT and set to the object
+
+		//// SHIFT start
+		// Fourier transform
 		cufftExecC2C(plan2dshift, (cufftComplex *)g, (cufftComplex *)g, CUFFT_FORWARD);
 		// compute exp(1j dx),exp(1j dy) where dx,dy are in (-1,1) and correspond to shifts to nearest integer
-		takeshifts<<<GS3d2, BS3d>>>(shiftx, shifty, scanx, scany, Ntheta, Nscan);
+		takeshifts<<<GS3d2, BS3d>>>(shiftx, shifty, scanx, scany, -1, Ntheta, Nscan);		
 		// perform shifts in the frequency domain by multiplication with exp(-1j dx),exp(-1j dy) - backward
-		shifts<<<GS3d1, BS3d>>>(g, shiftx, shifty, -1, Ntheta, Nscan, Ndetx * Ndety, Nprb * Nprb);
+		shifts<<<GS3d1, BS3d>>>(g, shiftx, shifty, Ntheta, Nscan, Ndetx * Ndety, Nprb*Nprb);
 		cufftExecC2C(plan2dshift, (cufftComplex *)g, (cufftComplex *)g, CUFFT_INVERSE);
-		setpart<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
+		//// SHIFT end
+
+		setpartobj<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
 		// copy result to CPU
 		cudaMemcpy((float2 *)f_, f, Ntheta * Nz * N * sizeof(float2), cudaMemcpyDefault);
 	}
-	else if (flg == 1)
-	{
-		//adjoint for the probe
+	else if (flg == 1)// adjoint object multiplication operator
+	{		
+		mulaobj<<<GS3d0, BS3d>>>(prb, g, f, scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
+		
+		//// SHIFT start
+		// Fourier transform
+		cufftExecC2C(plan2dshift, (cufftComplex *)g, (cufftComplex *)g, CUFFT_FORWARD);
+		// compute exp(1j dx),exp(1j dy) where dx,dy are in (-1,1) and correspond to shifts to nearest integer
+		takeshifts<<<GS3d2, BS3d>>>(shiftx, shifty, scanx, scany, -1, Ntheta, Nscan);		
+		// perform shifts in the frequency domain by multiplication with exp(-1j dx),exp(-1j dy) - backward
+		shifts<<<GS3d1, BS3d>>>(g, shiftx, shifty, Ntheta, Nscan, Ndetx * Ndety, Nprb*Nprb);
+		cufftExecC2C(plan2dshift, (cufftComplex *)g, (cufftComplex *)g, CUFFT_INVERSE);
+		//// SHIFT end
+
+		setpartprobe<<<GS3d0, BS3d>>>(prb, g, f, scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);				
+		// copy result to CPU
+		cudaMemcpy((float2 *)prb_, prb, Ntheta * Nprb * Nprb * sizeof(float2), cudaMemcpyDefault);
 	}
 }
