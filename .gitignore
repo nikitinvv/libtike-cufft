@@ -18,6 +18,7 @@ lib/
 lib64/
 parts/
 sdist/
+_skbuild/
 var/
 wheels/
 pip-wheel-metadata/
