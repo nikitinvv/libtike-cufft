@@ -113,7 +113,7 @@ class Solver(object):
             return f
 
         # initial gradient steps
-        gammapsi = 1 / (cp.max(cp.abs(prb)**2))
+        gammapsi = 1
         assert cp.isfinite(gammapsi), "The probe amplitude cannot be zero."
         # gammaprb = 1 # # under development
 
