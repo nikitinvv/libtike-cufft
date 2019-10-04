@@ -4,7 +4,7 @@ import dxchange
 from scipy import ndimage
 import sys
 import ptychocg as pt
-
+from scipy import ndimage
 if __name__ == "__main__":
 
     if (len(sys.argv) < 2):
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     n = 600  # horizontal size
     nz = 276  # vertical size
     ntheta = 1  # number of projections
-    nscan = 1000 # number of scan positions [max 5706 for the data example]
+    nscan = 500 # number of scan positions [max 5706 for the data example]
     nprb = 128  # probe size
     ndetx = 128  # detector x size
     ndety = 128  # detector y size
@@ -39,7 +39,7 @@ if __name__ == "__main__":
     prbang = cp.array(dxchange.read_tiff(
         'model/prbang.tiff').astype('float32'))
     prb0[0] = prbamp*cp.exp(1j*prbang)
-
+    
     # read scan positions
     scan = cp.ones([2, ntheta, nscan], dtype='float32')
     scan[:, 0] = cp.load('model/coords.npy')[:, :nscan].astype('float32')
@@ -56,18 +56,29 @@ if __name__ == "__main__":
     slv = pt.Solver(nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta)
     # Compute data
     data = slv.fwd_ptycho_batch(psi0, scan, prb0)    
-    dxchange.write_tiff(data,'data')
+    dxchange.write_tiff(data,'data',overwrite=True)
     
     # Initial guess
     psi = cp.ones([ntheta, nz, n], dtype='complex64')    
-    prb = prb0.copy().swapaxes(1,2)#*0+1
+    prb = prb0.copy().swapaxes(1,2)
     psi, prb = slv.cg_ptycho_batch(data, psi, scan, prb, piter, piiter, model)
     
     # Save result
     name = str(model)+str(piter)
     dxchange.write_tiff(cp.angle(psi).get(),
                         'rec/psiang'+name, overwrite=True)
-    dxchange.write_tiff(cp.abs(psi).get(),  'rec/psiamp'+name, overwrite=True)
+    dxchange.write_tiff(cp.abs(psi).get(),  'rec/prbamp'+name, overwrite=True)
+    
+    #recovered
+    dxchange.write_tiff(cp.angle(prb).get(),
+                        'rec/prbangle'+name, overwrite=True)
+    dxchange.write_tiff(cp.abs(prb).get(),  'rec/prbamp'+name, overwrite=True)
+    #init
+    dxchange.write_tiff(cp.angle(prb0).get(),
+                        'rec/prb0angle'+name, overwrite=True)
+    dxchange.write_tiff(cp.abs(prb0).get(),  'rec/prb0amp'+name, overwrite=True)
+
+    
     # plot result
     import matplotlib.pyplot as plt
     plt.figure(figsize=(11, 7))
@@ -77,34 +88,31 @@ if __name__ == "__main__":
              '.', markersize=1.5, color='blue')
     plt.xlim([0, n])
     plt.ylim([0, nz])
-    plt.gca().invert_yaxis()
-    plt.subplot(2, 2, 3)
-    plt.title('object phase')
-    plt.imshow(cp.angle(psi[0]).get(), cmap='gray')
+    plt.gca().invert_yaxis()    
     plt.subplot(2, 4, 1)
-    plt.title('diff prb amplitude')
+    plt.title('correct prb phase')
     plt.imshow(cp.angle(prb0[0]).get(), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 4, 2)
-    plt.title('diff prb amplitude')    
+    plt.title('correct prb amplitude')    
     plt.imshow(cp.abs(prb0[0]).get(), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 4, 3)
-    plt.title('probe phase')
+    plt.title('retrieved probe phase')
     plt.imshow(cp.angle(prb[0]).get(), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 4, 4)
-    plt.title('probe amplitude')
+    plt.title('retrieved probe amplitude')
     plt.imshow(cp.abs(prb[0]).get(), cmap='gray')
     plt.colorbar()
-    plt.subplot(2, 4, 7)
-    plt.title('diff prb amplitude')
-    plt.imshow(cp.angle(prb0[0]-prb[0]).get(), cmap='gray')
+    plt.subplot(2, 2, 3)
+    plt.title('object phase')
+    plt.imshow(cp.angle(psi[0]).get(), cmap='gray')
     plt.colorbar()
-    plt.subplot(2, 4, 8)
-    plt.title('diff prb amplitude')
-    plt.imshow(cp.abs(prb0[0]-prb[0]).get(), cmap='gray')
-    plt.colorbar()
+    plt.subplot(2, 2, 4)
+    plt.title('object amplitude')    
+    plt.imshow(cp.abs(psi[0]).get(), cmap='gray')
+    plt.colorbar()    
     plt.savefig('result.png', dpi=600)
     print("See result.png and tiff files in rec/ folder")
     
