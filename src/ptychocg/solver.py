@@ -112,70 +112,64 @@ class Solver(object):
                 f = cp.sum(cp.abs(fpsi)**2-2*data * cp.log(cp.abs(fpsi)+1e-32))
             return f
 
-        # initial gradient steps       
-        gammapsi = 1
-        gammaprb = 1
-
+        
         print("# congujate gradient parameters\n"
               "iteration, step size, function min")  # csv column headers
-        for k in range(piter):          
-                
-            # object retrieval subproblem with fixed probe
-            for i in range(piiter):
-                # CG update psi with fixed prb
-                fpsi = self.fwd_ptycho(psi, scan, prb)
-                if model == 'gaussian':
-                    gradpsi = self.adj_ptycho(
-                        fpsi-cp.sqrt(data)*cp.exp(1j*cp.angle(fpsi)), scan, prb)/(cp.max(cp.abs(prb)**2))
-                elif model == 'poisson':
-                    gradpsi = self.adj_ptycho(
-                        fpsi-data*fpsi/(cp.abs(fpsi)**2+1e-32), scan, prb)/(cp.max(cp.abs(prb)**2))
-                # Dai-Yuan direction
-                if i == 0:
-                    dpsi = -gradpsi
-                else:
-                    dpsi = -gradpsi+cp.linalg.norm(gradpsi)**2 / \
-                        ((cp.sum(cp.conj(dpsi)*(gradpsi-gradpsi0))))*dpsi
-                gradpsi0 = gradpsi
-                # line search
-                fdpsi = self.fwd_ptycho(dpsi, scan, prb)
-                gammapsi = self.line_search(
-                    minf, gammapsi, psi, fpsi, dpsi, fdpsi)
-                # update psi
-                psi = psi + gammapsi*dpsi
+        for k in range(piter):
+            # initial gradient steps
+            gammapsi = 1
+            gammaprb = 1
+            # 1) object retrieval subproblem with fixed probe
+            # forward operator
+            fpsi = self.fwd_ptycho(psi, scan, prb)
+            # take gradient
+            if model == 'gaussian':
+                gradpsi = self.adj_ptycho(
+                    fpsi-cp.sqrt(data)*cp.exp(1j*cp.angle(fpsi)), scan, prb)/(cp.max(cp.abs(prb))**2)
+            elif model == 'poisson':
+                gradpsi = self.adj_ptycho(
+                    fpsi-data*fpsi/(cp.abs(fpsi)**2+1e-32), scan, prb)/(cp.max(cp.abs(prb))**2)
+            # Dai-Yuan direction
+            if k == 0:
+                dpsi = -gradpsi
+            else:
+                dpsi = -gradpsi+cp.linalg.norm(gradpsi)**2 / \
+                    ((cp.sum(cp.conj(dpsi)*(gradpsi-gradpsi0))))*dpsi
+            gradpsi0 = gradpsi
+            # line search
+            fdpsi = self.fwd_ptycho(dpsi, scan, prb)
+            gammapsi = self.line_search(
+                minf, gammapsi, psi, fpsi, dpsi, fdpsi)
+            # update psi
+            psi = psi + gammapsi*dpsi
 
-            # probe retrieval subproblem with fixed object
-            for i in range(piiter):
-                fpsi = self.fwd_ptycho(psi, scan, prb)
-                if model == 'gaussian':
-                    gradprb = self.adj_ptycho_prb(
-                        fpsi-cp.sqrt(data)*cp.exp(1j*cp.angle(fpsi)), scan, psi)/self.nscan
-
-                elif model == 'poisson':
-                    gradprb = self.adj_ptycho_prb(
-                        fpsi-data*fpsi/(cp.abs(fpsi)**2+1e-32), scan, psi)/self.nscan
-                # Dai-Yuan direction
-                if (i == 0):
-                    dprb = -gradprb
-                else:
-                    dprb = -gradprb+cp.linalg.norm(gradprb)**2 / \
-                        ((cp.sum(cp.conj(dprb)*(gradprb-gradprb0))))*dprb
-                gradprb0 = gradprb
-                # line search
-                fdprb = self.fwd_ptycho(psi, scan, dprb)
-                gammaprb = self.line_search(
-                    minf, gammaprb, psi, fpsi, psi, fdprb)
-                # update prb
-                prb = prb + gammaprb*dprb
-
+            # 2) probe retrieval subproblem with fixed object
+            # forward operator
+            fprb = self.fwd_ptycho(psi, scan, prb)
+            # take gradient
+            if model == 'gaussian':
+                gradprb = self.adj_ptycho_prb(
+                    fprb-cp.sqrt(data)*cp.exp(1j*cp.angle(fprb)), scan, psi)/cp.max(cp.abs(psi))**2/self.nscan
+            elif model == 'poisson':
+                gradprb = self.adj_ptycho_prb(
+                    fprb-data*fprb/(cp.abs(fprb)**2+1e-32), scan, psi)/cp.max(cp.abs(psi))**2/self.nscan
+            # Dai-Yuan direction
+            if (k == 0):
+                dprb = -gradprb
+            else:
+                dprb = -gradprb+cp.linalg.norm(gradprb)**2 / \
+                    ((cp.sum(cp.conj(dprb)*(gradprb-gradprb0))))*dprb
+            gradprb0 = gradprb
+            # line search
+            fdprb = self.fwd_ptycho(psi, scan, dprb)
+            gammaprb = self.line_search(
+                minf, gammaprb, psi, fprb, psi, fdprb)
+            # update prb
+            prb = prb + gammaprb*dprb
             if (np.mod(k, 4) == 0):
+                fpsi = self.fwd_ptycho(psi, scan, prb)
                 print("%4d, %.3e, %.3e, %.7e" %
                       (k, gammapsi, gammaprb, minf(psi, fpsi)))
-
-        max_computed_angle = cp.amax(cp.abs(cp.angle(psi)))
-        if max_computed_angle > 3.14:
-            warnings.warn("Possible phase wrap. Max angle is %6f."
-                          % max_computed_angle)
 
         return psi, prb
 
