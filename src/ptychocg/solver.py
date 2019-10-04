@@ -100,7 +100,7 @@ class Solver(object):
             warnings.warn("Line search failed for conjugate gradient.")
         return gamma
 
-    def cg_ptycho(self, data, psi, scan, prb, piter, piiter, model):
+    def cg_ptycho(self, data, psi, scan, prb, piter, model):
         """Conjugate gradients for ptychography"""
         assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
         # minimization functional
@@ -173,7 +173,7 @@ class Solver(object):
 
         return psi, prb
 
-    def cg_ptycho_batch(self, data, initpsi, scan, initprb, piter, piiter, model):
+    def cg_ptycho_batch(self, data, initpsi, scan, initprb, piter, model):
         """Solve ptycho by angles partitions."""
         assert initprb.ndim == 3, "prb needs 3 dimensions, not %d" % initprb.ndim
 
@@ -185,5 +185,5 @@ class Solver(object):
             datap = cp.array(data[ids])  # copy a part of data to GPU
             # solve cg ptychography problem for the part
             psi[ids], prb[ids] = self.cg_ptycho(
-                datap, psi[ids], scan[:, ids], prb[ids, :, :], piter, piiter, model)
+                datap, psi[ids], scan[:, ids], prb[ids, :, :], piter, model)
         return psi, prb

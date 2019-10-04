@@ -61,7 +61,7 @@ if __name__ == "__main__":
     # Initial guess
     psi = cp.ones([ntheta, nz, n], dtype='complex64')    
     prb = prb0.copy().swapaxes(1,2)
-    psi, prb = slv.cg_ptycho_batch(data, psi, scan, prb, piter, piiter, model)
+    psi, prb = slv.cg_ptycho_batch(data, psi, scan, prb, piter, model)
     
     # Save result
     name = str(model)+str(piter)
