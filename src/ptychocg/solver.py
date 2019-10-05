@@ -100,7 +100,7 @@ class Solver(object):
             warnings.warn("Line search failed for conjugate gradient.")
         return gamma
 
-    def cg_ptycho(self, data, psi, scan, prb, piter, model):
+    def cg_ptycho(self, data, psi, scan, prb, piter, model, recover_prb):
         """Conjugate gradients for ptychography"""
         assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
         # minimization functional
@@ -112,13 +112,13 @@ class Solver(object):
                 f = cp.sum(cp.abs(fpsi)**2-2*data * cp.log(cp.abs(fpsi)+1e-32))
             return f
 
-        
+        # initial gradient step
+        gammapsi = 1
+        gammaprb = 1
         print("# congujate gradient parameters\n"
-              "iteration, step size, function min")  # csv column headers
+              "iteration, step size object, step size probe, function min")  # csv column headers
+
         for k in range(piter):
-            # initial gradient steps
-            gammapsi = 1
-            gammaprb = 1
             # 1) object retrieval subproblem with fixed probe
             # forward operator
             fpsi = self.fwd_ptycho(psi, scan, prb)
@@ -138,42 +138,48 @@ class Solver(object):
             gradpsi0 = gradpsi
             # line search
             fdpsi = self.fwd_ptycho(dpsi, scan, prb)
+            if(recover_prb):
+                # reset gamma
+                gammapsi = 1
             gammapsi = self.line_search(
                 minf, gammapsi, psi, fpsi, dpsi, fdpsi)
             # update psi
             psi = psi + gammapsi*dpsi
 
-            # 2) probe retrieval subproblem with fixed object
-            # forward operator
-            fprb = self.fwd_ptycho(psi, scan, prb)
-            # take gradient
-            if model == 'gaussian':
-                gradprb = self.adj_ptycho_prb(
-                    fprb-cp.sqrt(data)*cp.exp(1j*cp.angle(fprb)), scan, psi)/cp.max(cp.abs(psi))**2/self.nscan
-            elif model == 'poisson':
-                gradprb = self.adj_ptycho_prb(
-                    fprb-data*fprb/(cp.abs(fprb)**2+1e-32), scan, psi)/cp.max(cp.abs(psi))**2/self.nscan
-            # Dai-Yuan direction
-            if (k == 0):
-                dprb = -gradprb
-            else:
-                dprb = -gradprb+cp.linalg.norm(gradprb)**2 / \
-                    ((cp.sum(cp.conj(dprb)*(gradprb-gradprb0))))*dprb
-            gradprb0 = gradprb
-            # line search
-            fdprb = self.fwd_ptycho(psi, scan, dprb)
-            gammaprb = self.line_search(
-                minf, gammaprb, psi, fprb, psi, fdprb)
-            # update prb
-            prb = prb + gammaprb*dprb
-            if (np.mod(k, 4) == 0):
+            if(recover_prb):
+                # 2) probe retrieval subproblem with fixed object
+                # forward operator
+                fprb = self.fwd_ptycho(psi, scan, prb)
+                # take gradient
+                if model == 'gaussian':
+                    gradprb = self.adj_ptycho_prb(
+                        fprb-cp.sqrt(data)*cp.exp(1j*cp.angle(fprb)), scan, psi)/cp.max(cp.abs(psi))**2/self.nscan
+                elif model == 'poisson':
+                    gradprb = self.adj_ptycho_prb(
+                        fprb-data*fprb/(cp.abs(fprb)**2+1e-32), scan, psi)/cp.max(cp.abs(psi))**2/self.nscan
+                # Dai-Yuan direction
+                if (k == 0):
+                    dprb = -gradprb
+                else:
+                    dprb = -gradprb+cp.linalg.norm(gradprb)**2 / \
+                        ((cp.sum(cp.conj(dprb)*(gradprb-gradprb0))))*dprb
+                gradprb0 = gradprb
+                # line search
+                fdprb = self.fwd_ptycho(psi, scan, dprb)
+                gammaprb = self.line_search(
+                    minf, 1, psi, fprb, psi, fdprb)  # start with gammaprb = 1 on each iteration
+                # update prb
+                prb = prb + gammaprb*dprb
+
+            # check convergence
+            if (np.mod(k, 8) == 0):
                 fpsi = self.fwd_ptycho(psi, scan, prb)
                 print("%4d, %.3e, %.3e, %.7e" %
                       (k, gammapsi, gammaprb, minf(psi, fpsi)))
 
         return psi, prb
 
-    def cg_ptycho_batch(self, data, initpsi, scan, initprb, piter, model):
+    def cg_ptycho_batch(self, data, initpsi, scan, initprb, piter, model, recover_prb):
         """Solve ptycho by angles partitions."""
         assert initprb.ndim == 3, "prb needs 3 dimensions, not %d" % initprb.ndim
 
@@ -185,5 +191,5 @@ class Solver(object):
             datap = cp.array(data[ids])  # copy a part of data to GPU
             # solve cg ptychography problem for the part
             psi[ids], prb[ids] = self.cg_ptycho(
-                datap, psi[ids], scan[:, ids], prb[ids, :, :], piter, model)
+                datap, psi[ids], scan[:, ids], prb[ids, :, :], piter, model, recover_prb)
         return psi, prb
