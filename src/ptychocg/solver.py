@@ -112,9 +112,10 @@ class Solver(object):
                 f = cp.sum(cp.abs(fpsi)**2-2*data * cp.log(cp.abs(fpsi)+1e-32))
             return f
 
-        # initial gradient step
+        # initial gradient steps
         gammapsi = 1
         gammaprb = 1
+
         print("# congujate gradient parameters\n"
               "iteration, step size object, step size probe, function min")  # csv column headers
 
