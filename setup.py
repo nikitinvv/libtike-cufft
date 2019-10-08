@@ -128,7 +128,7 @@ class build_py(_build_py):
 setup(
     name='ptychocg',
     author='Viktor Nikitin',
-    version='0.1.0',
+    version='0.2.0',
     # this is necessary so that the swigged python file gets picked up
     package_dir={"": "src"},
     packages=find_namespace_packages(where='src', include=['ptychocg*']),
