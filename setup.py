@@ -27,7 +27,7 @@ def locate_cuda():
     is based on finding 'nvcc' in the PATH.
     """
 
-    # conda_cuda = pjoin(os.environ['CONDA_PREFIX'], 'pkgs', 'cudatoolkit-dev')
+    conda_cuda = pjoin(os.environ['CONDA_PREFIX'], 'pkgs', 'cudatoolkit-dev')
     # first check if the CUDAHOME env variable is in use
     if 'CUDAHOME' in os.environ:
         home = os.environ['CUDAHOME']
