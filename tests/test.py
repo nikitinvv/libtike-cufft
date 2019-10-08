@@ -4,7 +4,7 @@ import dxchange
 from scipy import ndimage
 import sys
 import ptychocg as pt
-from scipy import ndimage
+
 if __name__ == "__main__":
 
     if (len(sys.argv) < 2):

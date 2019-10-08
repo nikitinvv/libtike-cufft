@@ -100,7 +100,7 @@ class Solver(object):
             warnings.warn("Line search failed for conjugate gradient.")
         return gamma
 
-    def cg_ptycho(self, data, psi, scan, prb, piter, model, recover_prb):
+    def cg_ptycho(self, data, psi, scan, prb, piter, model='gaussian', recover_prb=False):
         """Conjugate gradients for ptychography"""
         assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
         # minimization functional
@@ -118,7 +118,7 @@ class Solver(object):
         print("# congujate gradient parameters\n"
               "iteration, step size object, step size probe, function min")  # csv column headers
 
-        for k in range(piter):
+        for i in range(piter):
             # 1) object retrieval subproblem with fixed probe
             # forward operator
             fpsi = self.fwd_ptycho(psi, scan, prb)
@@ -130,11 +130,11 @@ class Solver(object):
                 gradpsi = self.adj_ptycho(
                     fpsi-data*fpsi/(cp.abs(fpsi)**2+1e-32), scan, prb)/(cp.max(cp.abs(prb))**2)
             # Dai-Yuan direction
-            if k == 0:
+            if i == 0:
                 dpsi = -gradpsi
             else:
-                dpsi = -gradpsi+cp.linalg.norm(gradpsi)**2 / \
-                    ((cp.sum(cp.conj(dpsi)*(gradpsi-gradpsi0))))*dpsi
+                dpsi = -gradpsi+(cp.linalg.norm(gradpsi)**2 /
+                                 (cp.sum(cp.conj(dpsi)*(gradpsi-gradpsi0)))*dpsi)
             gradpsi0 = gradpsi
             # line search
             fdpsi = self.fwd_ptycho(dpsi, scan, prb)
@@ -158,11 +158,11 @@ class Solver(object):
                     gradprb = self.adj_ptycho_prb(
                         fprb-data*fprb/(cp.abs(fprb)**2+1e-32), scan, psi)/cp.max(cp.abs(psi))**2/self.nscan
                 # Dai-Yuan direction
-                if (k == 0):
+                if (i == 0):
                     dprb = -gradprb
                 else:
-                    dprb = -gradprb+cp.linalg.norm(gradprb)**2 / \
-                        ((cp.sum(cp.conj(dprb)*(gradprb-gradprb0))))*dprb
+                    dprb = -gradprb+(cp.linalg.norm(gradprb)**2 /
+                                     (cp.sum(cp.conj(dprb)*(gradprb-gradprb0)))*dprb)
                 gradprb0 = gradprb
                 # line search
                 fdprb = self.fwd_ptycho(psi, scan, dprb)
@@ -172,7 +172,7 @@ class Solver(object):
                 prb = prb + gammaprb*dprb
 
             # check convergence
-            if (np.mod(k, 8) == 0):
+            if (np.mod(i, 8) == 0):
                 fpsi = self.fwd_ptycho(psi, scan, prb)
                 print("%4d, %.3e, %.3e, %.7e" %
                       (k, gammapsi, gammaprb, minf(psi, fpsi)))
