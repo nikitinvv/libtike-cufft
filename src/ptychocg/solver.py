@@ -176,7 +176,7 @@ class Solver(object):
             if (np.mod(i, 8) == 0):
                 fpsi = self.fwd_ptycho(psi, scan, prb)
                 print("%4d, %.3e, %.3e, %.7e" %
-                      (k, gammapsi, gammaprb, minf(psi, fpsi)))
+                      (i, gammapsi, gammaprb, minf(psi, fpsi)))
 
         return psi, prb
 
