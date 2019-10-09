@@ -14,14 +14,6 @@ import_array();
 
 class ptychofft
 {
-	size_t N;	  // object horizontal size
-	size_t Nz;	 // object vertical size
-	size_t Ntheta; // number of projections
-	size_t Nscan;  // number of scan positions for 1 projection
-	size_t Ndetx;  // detector x size
-	size_t Ndety;  // detector y size
-	size_t Nprb;   // probe size in 1 dimension
-
 	float2 *f;		// object
 	float2 *g;		// data
 	float2 *prb;	// probe function
@@ -41,6 +33,16 @@ class ptychofft
 	dim3 GS3d2;
 
 public:
+  %immutable;
+  size_t Ntheta; // number of projections
+  size_t Nz;	 // object vertical size
+  size_t N;	  // object horizontal size
+  size_t Nscan;  // number of scan positions for 1 projection
+  size_t Ndetx;  // detector x size
+  size_t Ndety;  // detector y size
+  size_t Nprb;   // probe size in 1 dimension
+  %mutable;
+
 	// constructor, memory allocation
 	ptychofft(size_t Ntheta, size_t Nz, size_t N,
 			  size_t Nscan, size_t Ndetx, size_t Ndety, size_t Nprb);
