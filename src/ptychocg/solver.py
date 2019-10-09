@@ -75,7 +75,6 @@ class PtychoCuFFT(object):
 
     def __exit__(self, type, value, traceback):
         """Free GPU memory due at interruptions or with-block exit."""
-        print("__exit__ was called.")
         del self.cl_ptycho
 
     def fwd_ptycho(self, psi, scan, prb):
