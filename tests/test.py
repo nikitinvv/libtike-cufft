@@ -52,20 +52,20 @@ if __name__ == "__main__":
     psi0[0] = psiamp*cp.exp(1j*psiang)
 
     # Class gpu solver
-    slv = pt.Solver(nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta)
-    # Compute data
-    data = slv.fwd_ptycho_batch(psi0, scan, prb0)
-    dxchange.write_tiff(data, 'data', overwrite=True)
+    with pt.CGPtychoSolver(nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta) as slv:
+        # Compute data
+        data = slv.fwd_ptycho_batch(psi0, scan, prb0)
+        dxchange.write_tiff(data, 'data', overwrite=True)
 
-    # Initial guess
-    psi = cp.ones([ntheta, nz, n], dtype='complex64')
-    if (recover_prb):
-        # Choose an adequate probe approximation
-        prb = prb0.copy().swapaxes(1, 2)
-    else:
-        prb = prb0.copy()
-    psi, prb = slv.cg_ptycho_batch(
-        data, psi, scan, prb, piter, model, recover_prb)
+        # Initial guess
+        psi = cp.ones([ntheta, nz, n], dtype='complex64')
+        if (recover_prb):
+            # Choose an adequate probe approximation
+            prb = prb0.copy().swapaxes(1, 2)
+        else:
+            prb = prb0.copy()
+        psi, prb = slv.cg_ptycho_batch(
+            data, psi, scan, prb, piter, model, recover_prb)
 
     # Save result
     name = str(model)+str(piter)

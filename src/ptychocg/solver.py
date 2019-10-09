@@ -1,4 +1,25 @@
-"""Module for 2D ptychography."""
+"""A module for ptychography solvers.
+
+This module implements ptychographic solvers which all inherit from a
+ptychography base class. The base class implements the forward and adjoint
+ptychography operators and manages GPU memory.
+
+Solvers in this module are Python context managers which means they should be
+instantiated using a with-block. e.g.
+
+```python
+# load data and such
+data = cp.load(...)
+# instantiate the solver with memory allocation related parameters
+with CustomPtychoSolver(...) as solver:
+    # call the solver with solver specific parameters
+    result = solver.run(data, ...)
+# solver memory is automatically freed at with-block exit
+```
+
+Context managers are capable of gracefully handling interruptions (CTRL+C).
+
+"""
 
 import warnings
 import numpy as np
@@ -8,10 +29,12 @@ import signal
 from ptychocg.ptychofft import ptychofft
 
 
-class Solver(object):
-    """Ptychographic solver instance.
+class PtychoCuFFT(object):
+    """Base class for ptychography solvers using the cuFFT library.
 
-    Manages GPU memory for solving the ptychography problem.
+    This class is a context manager which provides the basic operators required
+    to implement a ptychography solver. It also manages memory automatically,
+    and provides correct cleanup for interruptions or terminations.
 
     Attribtues
     ----------
@@ -28,11 +51,10 @@ class Solver(object):
     ptheta : int
         The number of angular partitions to process together
         simultaneously.
-
     """
 
     def __init__(self, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta):
-        """Please see help(Solver) for more info."""
+        """Please see help(PtychoCuFFT) for more info."""
         self.n = n  # object horizontal size
         self.nz = nz  # object vertical size
         self.ntheta = ntheta  # number of projections
@@ -44,15 +66,17 @@ class Solver(object):
 
         # class for the ptycho transform (C++ wrapper)
         self.cl_ptycho = ptychofft(
-            self.ptheta, self.nz, self.n, self.nscan, self.ndetx, self.ndety, self.nprb)
-        # GPU memory deallocation with ctrl+C, ctrl+Z sygnals
-        signal.signal(signal.SIGINT, self.signal_handler)
-        signal.signal(signal.SIGTSTP, self.signal_handler)
+            self.ptheta, self.nz, self.n, self.nscan, self.ndetx, self.ndety,
+            self.nprb)
 
-    def signal_handler(self, sig, frame):
-        """Free gpu memory after SIGINT, SIGSTSTP (destructor)"""
-        self = []
-        sys.exit(0)
+    def __enter__(self):
+        """Return self at start of a with-block."""
+        return self
+
+    def __exit__(self, type, value, traceback):
+        """Free GPU memory due at interruptions or with-block exit."""
+        print("__exit__ was called.")
+        del self.cl_ptycho
 
     def fwd_ptycho(self, psi, scan, prb):
         """Ptychography transform (FQ)"""
@@ -90,6 +114,10 @@ class Solver(object):
         self.cl_ptycho.adj(psi.data.ptr, data.data.ptr,
                            scan.data.ptr, res.data.ptr, flg)  # C++ wrapper, send pointers to GPU arrays
         return res
+
+
+class CGPtychoSolver(PtychoCuFFT):
+    """Solve the ptychography problem using congujate gradient."""
 
     def line_search(self, minf, gamma, u, fu, d, fd):
         """Line search for the step sizes gamma"""
