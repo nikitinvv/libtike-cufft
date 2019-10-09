@@ -21,17 +21,17 @@ class ptychofft
 	dim3 GS3d2;
 
 public:
-  size_t Ntheta; // number of projections
-  size_t Nz;	 // object vertical size
-  size_t N;	  // object horizontal size
-  size_t Nscan;  // number of scan positions for 1 projection
-  size_t Ndetx;  // detector x size
-  size_t Ndety;  // detector y size
-  size_t Nprb;   // probe size in 1 dimension
+  size_t ntheta; // number of projections
+  size_t nz;	 // object vertical size
+  size_t n;	  // object horizontal size
+  size_t nscan;  // number of scan positions for 1 projection
+  size_t ndetx;  // detector x size
+  size_t ndety;  // detector y size
+  size_t nprb;   // probe size in 1 dimension
 
 	// constructor, memory allocation
-	ptychofft(size_t Ntheta, size_t Nz, size_t N,
-			  size_t Nscan, size_t Ndetx, size_t Ndety, size_t Nprb);
+	ptychofft(size_t ntheta, size_t nz, size_t n,
+			  size_t nscan, size_t ndetx, size_t ndety, size_t nprb);
 	// destructor, memory deallocation
 	~ptychofft();
 	// forward ptychography operator FQ
