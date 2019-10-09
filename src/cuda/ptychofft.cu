@@ -2,18 +2,12 @@
 #include "kernels.cuh"
 
 // constructor, memory allocation
-ptychofft::ptychofft(size_t ntheta_, size_t nz_, size_t n_,
-					 size_t nscan_, size_t ndetx_, size_t ndety_, size_t nprb_)
+ptychofft::ptychofft(size_t ntheta, size_t nz, size_t n, size_t nscan,
+  size_t ndetx, size_t ndety, size_t nprb
+) :
+  ntheta(ntheta), nz(nz), n(n), nscan(nscan), ndetx(ndetx), ndety(ndety),
+  nprb(nprb)
 {
-	// init sizes
-	n = n_;
-	ntheta = ntheta_;
-	nz = nz_;
-	nscan = nscan_;
-	ndetx = ndetx_;
-	ndety = ndety_;
-	nprb = nprb_;
-
 	// allocate memory on GPU
 	cudaMalloc((void **)&f, ntheta * nz * n * sizeof(float2));
 	cudaMalloc((void **)&g, ntheta * nscan * ndetx * ndety * sizeof(float2));
