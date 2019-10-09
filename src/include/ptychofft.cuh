@@ -21,7 +21,7 @@ class ptychofft
 	dim3 GS3d2;
 
 public:
-  size_t ntheta; // number of projections
+  size_t ptheta; // number of projections
   size_t nz;	 // object vertical size
   size_t n;	  // object horizontal size
   size_t nscan;  // number of scan positions for 1 projection
@@ -30,12 +30,12 @@ public:
   size_t nprb;   // probe size in 1 dimension
 
 	// constructor, memory allocation
-	ptychofft(size_t ntheta, size_t nz, size_t n,
+	ptychofft(size_t ptheta, size_t nz, size_t n,
 			  size_t nscan, size_t ndetx, size_t ndety, size_t nprb);
 	// destructor, memory deallocation
 	~ptychofft();
 	// forward ptychography operator FQ
 	void fwd(size_t g_, size_t f_, size_t scan_, size_t prb_);
 	// adjoint ptychography operator with respect to object (fgl==0) f = Q*F*g, or probe (flg==1) prb = Q*F*g
-	void adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg);	
+	void adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg);
 };
