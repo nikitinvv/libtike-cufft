@@ -79,6 +79,9 @@ class PtychoCuFFT(object):
 
     def fwd_ptycho(self, psi, scan, prb):
         """Ptychography transform (FQ)"""
+        assert psi.dtype == cp.complex64, f"{psi.dtype}"
+        assert scan.dtype == cp.float32, f"{scan.dtype}"
+        assert prb.dtype == cp.complex64, f"{prb.dtype}"
         res = cp.zeros([self.ptheta, self.nscan, self.ndety,
                         self.ndetx], dtype='complex64')
         self.cl_ptycho.fwd(res.data.ptr, psi.data.ptr,
@@ -87,6 +90,9 @@ class PtychoCuFFT(object):
 
     def fwd_ptycho_batch(self, psi, scan, prb):
         """Batch of Ptychography transform (FQ)"""
+        assert psi.dtype == cp.complex64, f"{psi.dtype}"
+        assert scan.dtype == cp.float32, f"{scan.dtype}"
+        assert prb.dtype == cp.complex64, f"{prb.dtype}"
         data = np.zeros([self.ntheta, self.nscan, self.ndety,
                          self.ndetx], dtype='float32')
         for k in range(0, self.ntheta//self.ptheta):  # angle partitions in ptychography
@@ -98,6 +104,9 @@ class PtychoCuFFT(object):
 
     def adj_ptycho(self, data, scan, prb):
         """Adjoint ptychography transform (Q*F*)"""
+        assert data.dtype == cp.complex64, f"{data.dtype}"
+        assert scan.dtype == cp.float32, f"{scan.dtype}"
+        assert prb.dtype == cp.complex64, f"{prb.dtype}"
         res = cp.zeros([self.ptheta, self.nz, self.n],
                        dtype='complex64')
         flg = 0  # compute adjoint operator with respect to object
@@ -107,8 +116,12 @@ class PtychoCuFFT(object):
 
     def adj_ptycho_prb(self, data, scan, psi):
         """Adjoint ptychography probe transform (O*F*), object is fixed"""
+        assert data.dtype == cp.complex64, f"{data.dtype}"
+        assert scan.dtype == cp.float32, f"{scan.dtype}"
+        assert psi.dtype == cp.complex64, f"{psi.dtype}"
         res = cp.zeros([self.ptheta, self.nprb, self.nprb],
                        dtype='complex64')
+
         flg = 1  # compute adjoint operator with respect to probe
         self.cl_ptycho.adj(psi.data.ptr, data.data.ptr,
                            scan.data.ptr, res.data.ptr, flg)  # C++ wrapper, send pointers to GPU arrays
