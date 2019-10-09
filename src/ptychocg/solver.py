@@ -29,7 +29,7 @@ import signal
 from ptychocg.ptychofft import ptychofft
 
 
-class PtychoCuFFT(object):
+class PtychoCuFFT(ptychofft):
     """Base class for ptychography solvers using the cuFFT library.
 
     This class is a context manager which provides the basic operators required
@@ -55,19 +55,8 @@ class PtychoCuFFT(object):
 
     def __init__(self, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta):
         """Please see help(PtychoCuFFT) for more info."""
-        self.n = n  # object horizontal size
-        self.nz = nz  # object vertical size
+        super().__init__(ptheta, nz, n, nscan, ndetx, ndety, nprb)
         self.ntheta = ntheta  # number of projections
-        self.ptheta = ptheta  # number of projections for simultaneous processing on GPU
-        self.nscan = nscan  # number of scan positions for 1 projection
-        self.ndetx = ndetx  # detector x size
-        self.ndety = ndety  # detector y size
-        self.nprb = nprb  # probe size in 1 dimension
-
-        # class for the ptycho transform (C++ wrapper)
-        self.cl_ptycho = ptychofft(
-            self.ptheta, self.nz, self.n, self.nscan, self.ndetx, self.ndety,
-            self.nprb)
 
     def __enter__(self):
         """Return self at start of a with-block."""
@@ -75,7 +64,7 @@ class PtychoCuFFT(object):
 
     def __exit__(self, type, value, traceback):
         """Free GPU memory due at interruptions or with-block exit."""
-        del self.cl_ptycho
+        self.free()
 
     def fwd_ptycho(self, psi, scan, prb):
         """Ptychography transform (FQ)"""
@@ -84,8 +73,7 @@ class PtychoCuFFT(object):
         assert prb.dtype == cp.complex64, f"{prb.dtype}"
         res = cp.zeros([self.ptheta, self.nscan, self.ndety,
                         self.ndetx], dtype='complex64')
-        self.cl_ptycho.fwd(res.data.ptr, psi.data.ptr,
-                           scan.data.ptr, prb.data.ptr)  # C++ wrapper, send pointers to GPU arrays
+        self.fwd(res.data.ptr, psi.data.ptr, scan.data.ptr, prb.data.ptr)
         return res
 
     def fwd_ptycho_batch(self, psi, scan, prb):
@@ -110,8 +98,7 @@ class PtychoCuFFT(object):
         res = cp.zeros([self.ptheta, self.nz, self.n],
                        dtype='complex64')
         flg = 0  # compute adjoint operator with respect to object
-        self.cl_ptycho.adj(res.data.ptr, data.data.ptr,
-                           scan.data.ptr, prb.data.ptr, flg)  # C++ wrapper, send pointers to GPU arrays
+        self.adj(res.data.ptr, data.data.ptr, scan.data.ptr, prb.data.ptr, flg)
         return res
 
     def adj_ptycho_prb(self, data, scan, psi):
@@ -121,10 +108,8 @@ class PtychoCuFFT(object):
         assert psi.dtype == cp.complex64, f"{psi.dtype}"
         res = cp.zeros([self.ptheta, self.nprb, self.nprb],
                        dtype='complex64')
-
         flg = 1  # compute adjoint operator with respect to probe
-        self.cl_ptycho.adj(psi.data.ptr, data.data.ptr,
-                           scan.data.ptr, res.data.ptr, flg)  # C++ wrapper, send pointers to GPU arrays
+        self.adj(psi.data.ptr, data.data.ptr, scan.data.ptr, res.data.ptr, flg)
         return res
 
 

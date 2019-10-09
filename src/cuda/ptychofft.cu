@@ -53,14 +53,23 @@ ptychofft::ptychofft(size_t ptheta, size_t nz, size_t n, size_t nscan,
 // destructor, memory deallocation
 ptychofft::~ptychofft()
 {
-	cudaFree(f);
-	cudaFree(g);
-	cudaFree(scanx);
-	cudaFree(scany);
-	cudaFree(shiftx);
-	cudaFree(shifty);
-	cudaFree(prb);
-	cufftDestroy(plan2d);
+  free();
+}
+
+void ptychofft::free()
+{
+  if(!is_free)
+  {
+    cudaFree(f);
+    cudaFree(g);
+    cudaFree(scanx);
+    cudaFree(scany);
+    cudaFree(shiftx);
+    cudaFree(shifty);
+    cudaFree(prb);
+    cufftDestroy(plan2d);
+    is_free = true;
+  }
 }
 
 // forward ptychography operator g = FQf

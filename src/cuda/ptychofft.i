@@ -14,7 +14,9 @@ import_array();
 
 class ptychofft
 {
-	float2 *f;		// object
+  bool is_free = false;
+
+  float2 *f;		// object
 	float2 *g;		// data
 	float2 *prb;	// probe function
 	float *scanx;   // x scan positions
@@ -52,4 +54,5 @@ public:
 	void fwd(size_t g_, size_t f_, size_t scan_, size_t prb_);
 	// adjoint ptychography operator with respect to object (fgl==0) f = Q*F*g, or probe (flg==1) prb = Q*F*g
 	void adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg);
+  void free();
 };
