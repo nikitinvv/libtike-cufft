@@ -67,47 +67,47 @@ class PtychoCuFFT(ptychofft):
         self.free()
 
     def fwd_ptycho(self, psi, scan, prb):
-        """Ptychography transform (FQ)"""
+        """Ptychography transform (FQ)."""
         assert psi.dtype == cp.complex64, f"{psi.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert prb.dtype == cp.complex64, f"{prb.dtype}"
-        res = cp.zeros([self.ptheta, self.nscan, self.ndety,
-                        self.ndetx], dtype='complex64')
+        res = cp.zeros([self.ptheta, self.nscan, self.ndety, self.ndetx],
+                       dtype='complex64')
         self.fwd(res.data.ptr, psi.data.ptr, scan.data.ptr, prb.data.ptr)
         return res
 
     def fwd_ptycho_batch(self, psi, scan, prb):
-        """Batch of Ptychography transform (FQ)"""
+        """Batch of Ptychography transform (FQ)."""
         assert psi.dtype == cp.complex64, f"{psi.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert prb.dtype == cp.complex64, f"{prb.dtype}"
-        data = np.zeros([self.ntheta, self.nscan, self.ndety,
-                         self.ndetx], dtype='float32')
-        for k in range(0, self.ntheta//self.ptheta):  # angle partitions in ptychography
-            ids = np.arange(k*self.ptheta, (k+1)*self.ptheta)
-            data0 = cp.abs(self.fwd_ptycho(
-                psi[ids], scan[:, ids], prb[ids]))**2  # compute part on GPU
+        data = np.zeros([self.ntheta, self.nscan, self.ndety, self.ndetx],
+                        dtype='float32')
+        # angle partitions in ptychography
+        for k in range(0, self.ntheta // self.ptheta):
+            ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
+            # compute part on GPU
+            data0 = cp.abs(self.fwd_ptycho(psi[ids], scan[:, ids],
+                                           prb[ids]))**2
             data[ids] = data0.get()  # copy to CPU
         return data
 
     def adj_ptycho(self, data, scan, prb):
-        """Adjoint ptychography transform (Q*F*)"""
+        """Adjoint ptychography transform (Q*F*)."""
         assert data.dtype == cp.complex64, f"{data.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert prb.dtype == cp.complex64, f"{prb.dtype}"
-        res = cp.zeros([self.ptheta, self.nz, self.n],
-                       dtype='complex64')
+        res = cp.zeros([self.ptheta, self.nz, self.n], dtype='complex64')
         flg = 0  # compute adjoint operator with respect to object
         self.adj(res.data.ptr, data.data.ptr, scan.data.ptr, prb.data.ptr, flg)
         return res
 
     def adj_ptycho_prb(self, data, scan, psi):
-        """Adjoint ptychography probe transform (O*F*), object is fixed"""
+        """Adjoint ptychography probe transform (O*F*), object is fixed."""
         assert data.dtype == cp.complex64, f"{data.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert psi.dtype == cp.complex64, f"{psi.dtype}"
-        res = cp.zeros([self.ptheta, self.nprb, self.nprb],
-                       dtype='complex64')
+        res = cp.zeros([self.ptheta, self.nprb, self.nprb], dtype='complex64')
         flg = 1  # compute adjoint operator with respect to probe
         self.adj(psi.data.ptr, data.data.ptr, scan.data.ptr, res.data.ptr, flg)
         return res
@@ -117,24 +117,48 @@ class CGPtychoSolver(PtychoCuFFT):
     """Solve the ptychography problem using congujate gradient."""
 
     def line_search(self, minf, gamma, u, fu, d, fd):
-        """Line search for the step sizes gamma"""
-        while(minf(u, fu)-minf(u+gamma*d, fu+gamma*fd) < 0 and gamma > 1e-32):
+        """Line search for the step sizes gamma."""
+        while (minf(u, fu) - minf(u + gamma * d, fu + gamma * fd) < 0
+               and gamma > 1e-32):
             gamma *= 0.5
-        if(gamma <= 1e-32):  # direction not found
+        if (gamma <= 1e-32):  # direction not found
             gamma = 0
             warnings.warn("Line search failed for conjugate gradient.")
         return gamma
 
-    def cg_ptycho(self, data, psi, scan, prb, piter, model='gaussian', recover_prb=False):
-        """Conjugate gradients for ptychography"""
-        assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
-        # minimization functional
+    def cg_ptycho(
+            self,
+            data,
+            psi,
+            scan,
+            prb,
+            piter,
+            model='gaussian',
+            recover_prb=False,
+    ):
+        """Conjugate gradients for ptychography.
 
+        Parameters
+        ----------
+        model : str gaussian or poisson
+            The noise model to use for the gradient.
+        piter : int
+            The number of gradient steps to take.
+        recover_prb : bool
+            Whether to recover the probe or assume the given probe is correct.
+        gammapsi, gammaprb : float
+            The initial step sizes for the psi and prb gradient descent.
+
+        """
+        assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
+
+        # minimization functional
         def minf(psi, fpsi):
             if model == 'gaussian':
-                f = cp.linalg.norm(cp.abs(fpsi)-cp.sqrt(data))**2
+                f = cp.linalg.norm(cp.abs(fpsi) - cp.sqrt(data))**2
             elif model == 'poisson':
-                f = cp.sum(cp.abs(fpsi)**2-2*data * cp.log(cp.abs(fpsi)+1e-32))
+                f = cp.sum(
+                    cp.abs(fpsi)**2 - 2 * data * cp.log(cp.abs(fpsi) + 1e-32))
             return f
 
         # initial gradient steps
@@ -142,7 +166,8 @@ class CGPtychoSolver(PtychoCuFFT):
         gammaprb = 1
 
         print("# congujate gradient parameters\n"
-              "iteration, step size object, step size probe, function min")  # csv column headers
+              "iteration, step size object, step size probe, function min"
+              )  # csv column headers
 
         for i in range(piter):
             # 1) object retrieval subproblem with fixed probe
@@ -151,51 +176,64 @@ class CGPtychoSolver(PtychoCuFFT):
             # take gradient
             if model == 'gaussian':
                 gradpsi = self.adj_ptycho(
-                    fpsi-cp.sqrt(data)*cp.exp(1j*cp.angle(fpsi)), scan, prb)/(cp.max(cp.abs(prb))**2)
+                    fpsi - cp.sqrt(data) * cp.exp(1j * cp.angle(fpsi)),
+                    scan,
+                    prb,
+                ) / (cp.max(cp.abs(prb))**2)
             elif model == 'poisson':
                 gradpsi = self.adj_ptycho(
-                    fpsi-data*fpsi/(cp.abs(fpsi)**2+1e-32), scan, prb)/(cp.max(cp.abs(prb))**2)
+                    fpsi - data * fpsi / (cp.abs(fpsi)**2 + 1e-32),
+                    scan,
+                    prb,
+                ) / (cp.max(cp.abs(prb))**2)
             # Dai-Yuan direction
             if i == 0:
                 dpsi = -gradpsi
             else:
-                dpsi = -gradpsi+(cp.linalg.norm(gradpsi)**2 /
-                                 (cp.sum(cp.conj(dpsi)*(gradpsi-gradpsi0)))*dpsi)
+                dpsi = -gradpsi + (
+                    cp.linalg.norm(gradpsi)**2 /
+                    (cp.sum(cp.conj(dpsi) * (gradpsi - gradpsi0))) * dpsi)
             gradpsi0 = gradpsi
             # line search
             fdpsi = self.fwd_ptycho(dpsi, scan, prb)
-            if(recover_prb):
+            if (recover_prb):
                 # reset gamma
                 gammapsi = 1
-            gammapsi = self.line_search(
-                minf, gammapsi, psi, fpsi, dpsi, fdpsi)
+            gammapsi = self.line_search(minf, gammapsi, psi, fpsi, dpsi, fdpsi)
             # update psi
-            psi = psi + gammapsi*dpsi
+            psi = psi + gammapsi * dpsi
 
-            if(recover_prb):
+            if (recover_prb):
                 # 2) probe retrieval subproblem with fixed object
                 # forward operator
                 fprb = self.fwd_ptycho(psi, scan, prb)
                 # take gradient
                 if model == 'gaussian':
                     gradprb = self.adj_ptycho_prb(
-                        fprb-cp.sqrt(data)*cp.exp(1j*cp.angle(fprb)), scan, psi)/cp.max(cp.abs(psi))**2/self.nscan
+                        fprb - cp.sqrt(data) * cp.exp(1j * cp.angle(fprb)),
+                        scan,
+                        psi,
+                    ) / cp.max(cp.abs(psi))**2 / self.nscan
                 elif model == 'poisson':
                     gradprb = self.adj_ptycho_prb(
-                        fprb-data*fprb/(cp.abs(fprb)**2+1e-32), scan, psi)/cp.max(cp.abs(psi))**2/self.nscan
+                        fprb - data * fprb / (cp.abs(fprb)**2 + 1e-32),
+                        scan,
+                        psi,
+                    ) / cp.max(cp.abs(psi))**2 / self.nscan
                 # Dai-Yuan direction
                 if (i == 0):
                     dprb = -gradprb
                 else:
-                    dprb = -gradprb+(cp.linalg.norm(gradprb)**2 /
-                                     (cp.sum(cp.conj(dprb)*(gradprb-gradprb0)))*dprb)
+                    dprb = -gradprb + (
+                        cp.linalg.norm(gradprb)**2 /
+                        (cp.sum(cp.conj(dprb) * (gradprb - gradprb0))) * dprb)
                 gradprb0 = gradprb
                 # line search
                 fdprb = self.fwd_ptycho(psi, scan, dprb)
-                gammaprb = self.line_search(
-                    minf, 1, psi, fprb, psi, fdprb)  # start with gammaprb = 1 on each iteration
+                # start with gammaprb = 1 on each iteration
+                gammaprb = self.line_search(minf, 1, psi, fprb, psi, fdprb)
                 # update prb
-                prb = prb + gammaprb*dprb
+                prb = prb + gammaprb * dprb
 
             # check convergence
             if (np.mod(i, 8) == 0):
@@ -205,17 +243,34 @@ class CGPtychoSolver(PtychoCuFFT):
 
         return psi, prb
 
-    def cg_ptycho_batch(self, data, initpsi, scan, initprb, piter, model, recover_prb):
+    def cg_ptycho_batch(
+            self,
+            data,
+            initpsi,
+            scan,
+            initprb,
+            piter,
+            model,
+            recover_prb,
+    ):
         """Solve ptycho by angles partitions."""
         assert initprb.ndim == 3, "prb needs 3 dimensions, not %d" % initprb.ndim
 
         psi = initpsi.copy()
         prb = initprb.copy()
 
-        for k in range(0, self.ntheta//self.ptheta):  # angle partitions in ptychography
-            ids = np.arange(k*self.ptheta, (k+1)*self.ptheta)
+        # angle partitions in ptychography
+        for k in range(0, self.ntheta // self.ptheta):
+            ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
             datap = cp.array(data[ids])  # copy a part of data to GPU
             # solve cg ptychography problem for the part
             psi[ids], prb[ids] = self.cg_ptycho(
-                datap, psi[ids], scan[:, ids], prb[ids, :, :], piter, model, recover_prb)
+                datap,
+                psi[ids],
+                scan[:, ids],
+                prb[ids, :, :],
+                piter,
+                model,
+                recover_prb,
+            )
         return psi, prb
