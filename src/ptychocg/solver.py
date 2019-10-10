@@ -112,6 +112,35 @@ class PtychoCuFFT(ptychofft):
         self.adj(psi.data.ptr, data.data.ptr, scan.data.ptr, res.data.ptr, flg)
         return res
 
+    def run(self, data, psi, scan, prb, **kwargs):
+        """Placehold for a child's solving function."""
+        raise NotImplementedError("Cannot run a base class.")
+
+    def run_batch(self, data, psi, scan, prb, **kwargs):
+        """Run by dividing the work into batches."""
+        assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
+
+        psi = psi.copy()
+        prb = prb.copy()
+
+        # angle partitions in ptychography
+        for k in range(0, self.ntheta // self.ptheta):
+            ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
+            datap = cp.array(data[ids])  # copy a part of data to GPU
+            # solve cg ptychography problem for the part
+            result = self.run(
+                datap,
+                psi[ids],
+                scan[:, ids],
+                prb[ids, :, :],
+                **kwargs,
+            )
+            psi[ids], prb[ids] = result['psi'], result['prb']
+        return {
+            'psi': psi,
+            'prb': prb,
+        }
+
 
 class CGPtychoSolver(PtychoCuFFT):
     """Solve the ptychography problem using congujate gradient."""
@@ -126,7 +155,7 @@ class CGPtychoSolver(PtychoCuFFT):
             warnings.warn("Line search failed for conjugate gradient.")
         return gamma
 
-    def cg_ptycho(
+    def run(
             self,
             data,
             psi,
@@ -244,36 +273,4 @@ class CGPtychoSolver(PtychoCuFFT):
             'prb': prb,
             'gammaprb': gammaprb,
             'gammapsi': gammapsi,
-        }
-
-    def cg_ptycho_batch(
-            self,
-            data,
-            initpsi,
-            scan,
-            initprb,
-            **kwargs,
-    ):
-        """Solve ptycho by angles partitions."""
-        assert initprb.ndim == 3, "prb needs 3 dimensions, not %d" % initprb.ndim
-
-        psi = initpsi.copy()
-        prb = initprb.copy()
-
-        # angle partitions in ptychography
-        for k in range(0, self.ntheta // self.ptheta):
-            ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
-            datap = cp.array(data[ids])  # copy a part of data to GPU
-            # solve cg ptychography problem for the part
-            result = self.cg_ptycho(
-                datap,
-                psi[ids],
-                scan[:, ids],
-                prb[ids, :, :],
-                **kwargs,
-            )
-            psi[ids], prb[ids] = result['psi'], result['prb']
-        return {
-            'psi': psi,
-            'prb': prb,
         }
