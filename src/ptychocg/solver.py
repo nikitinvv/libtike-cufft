@@ -239,7 +239,12 @@ class CGPtychoSolver(PtychoCuFFT):
                 print("%4d, %.3e, %.3e, %.7e" %
                       (i, gammapsi, gammaprb, minf(psi, fpsi)))
 
-        return psi, prb
+        return {
+            'psi': psi,
+            'prb': prb,
+            'gammaprb': gammaprb,
+            'gammapsi': gammapsi,
+        }
 
     def cg_ptycho_batch(
             self,
@@ -247,9 +252,7 @@ class CGPtychoSolver(PtychoCuFFT):
             initpsi,
             scan,
             initprb,
-            piter,
-            model,
-            recover_prb,
+            **kwargs,
     ):
         """Solve ptycho by angles partitions."""
         assert initprb.ndim == 3, "prb needs 3 dimensions, not %d" % initprb.ndim
@@ -262,13 +265,15 @@ class CGPtychoSolver(PtychoCuFFT):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
             datap = cp.array(data[ids])  # copy a part of data to GPU
             # solve cg ptychography problem for the part
-            psi[ids], prb[ids] = self.cg_ptycho(
+            result = self.cg_ptycho(
                 datap,
                 psi[ids],
                 scan[:, ids],
                 prb[ids, :, :],
-                piter,
-                model,
-                recover_prb,
+                **kwargs,
             )
-        return psi, prb
+            psi[ids], prb[ids] = result['psi'], result['prb']
+        return {
+            'psi': psi,
+            'prb': prb,
+        }
