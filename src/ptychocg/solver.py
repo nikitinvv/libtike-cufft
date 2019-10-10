@@ -1,4 +1,25 @@
-"""Module for 2D ptychography."""
+"""A module for ptychography solvers.
+
+This module implements ptychographic solvers which all inherit from a
+ptychography base class. The base class implements the forward and adjoint
+ptychography operators and manages GPU memory.
+
+Solvers in this module are Python context managers which means they should be
+instantiated using a with-block. e.g.
+
+```python
+# load data and such
+data = cp.load(...)
+# instantiate the solver with memory allocation related parameters
+with CustomPtychoSolver(...) as solver:
+    # call the solver with solver specific parameters
+    result = solver.run(data, ...)
+# solver memory is automatically freed at with-block exit
+```
+
+Context managers are capable of gracefully handling interruptions (CTRL+C).
+
+"""
 
 import warnings
 import numpy as np
@@ -8,10 +29,12 @@ import signal
 from ptychocg.ptychofft import ptychofft
 
 
-class Solver(object):
-    """Ptychographic solver instance.
+class PtychoCuFFT(ptychofft):
+    """Base class for ptychography solvers using the cuFFT library.
 
-    Manages GPU memory for solving the ptychography problem.
+    This class is a context manager which provides the basic operators required
+    to implement a ptychography solver. It also manages memory automatically,
+    and provides correct cleanup for interruptions or terminations.
 
     Attribtues
     ----------
@@ -28,42 +51,36 @@ class Solver(object):
     ptheta : int
         The number of angular partitions to process together
         simultaneously.
-
     """
 
     def __init__(self, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta):
-        """Please see help(Solver) for more info."""
-        self.n = n  # object horizontal size
-        self.nz = nz  # object vertical size
+        """Please see help(PtychoCuFFT) for more info."""
+        super().__init__(ptheta, nz, n, nscan, ndetx, ndety, nprb)
         self.ntheta = ntheta  # number of projections
-        self.ptheta = ptheta  # number of projections for simultaneous processing on GPU
-        self.nscan = nscan  # number of scan positions for 1 projection
-        self.ndetx = ndetx  # detector x size
-        self.ndety = ndety  # detector y size
-        self.nprb = nprb  # probe size in 1 dimension
 
-        # class for the ptycho transform (C++ wrapper)
-        self.cl_ptycho = ptychofft(
-            self.ptheta, self.nz, self.n, self.nscan, self.ndetx, self.ndety, self.nprb)
-        # GPU memory deallocation with ctrl+C, ctrl+Z sygnals
-        signal.signal(signal.SIGINT, self.signal_handler)
-        signal.signal(signal.SIGTSTP, self.signal_handler)
+    def __enter__(self):
+        """Return self at start of a with-block."""
+        return self
 
-    def signal_handler(self, sig, frame):
-        """Free gpu memory after SIGINT, SIGSTSTP (destructor)"""
-        self = []
-        sys.exit(0)
+    def __exit__(self, type, value, traceback):
+        """Free GPU memory due at interruptions or with-block exit."""
+        self.free()
 
     def fwd_ptycho(self, psi, scan, prb):
         """Ptychography transform (FQ)"""
+        assert psi.dtype == cp.complex64, f"{psi.dtype}"
+        assert scan.dtype == cp.float32, f"{scan.dtype}"
+        assert prb.dtype == cp.complex64, f"{prb.dtype}"
         res = cp.zeros([self.ptheta, self.nscan, self.ndety,
                         self.ndetx], dtype='complex64')
-        self.cl_ptycho.fwd(res.data.ptr, psi.data.ptr,
-                           scan.data.ptr, prb.data.ptr)  # C++ wrapper, send pointers to GPU arrays
+        self.fwd(res.data.ptr, psi.data.ptr, scan.data.ptr, prb.data.ptr)
         return res
 
     def fwd_ptycho_batch(self, psi, scan, prb):
         """Batch of Ptychography transform (FQ)"""
+        assert psi.dtype == cp.complex64, f"{psi.dtype}"
+        assert scan.dtype == cp.float32, f"{scan.dtype}"
+        assert prb.dtype == cp.complex64, f"{prb.dtype}"
         data = np.zeros([self.ntheta, self.nscan, self.ndety,
                          self.ndetx], dtype='float32')
         for k in range(0, self.ntheta//self.ptheta):  # angle partitions in ptychography
@@ -75,21 +92,29 @@ class Solver(object):
 
     def adj_ptycho(self, data, scan, prb):
         """Adjoint ptychography transform (Q*F*)"""
+        assert data.dtype == cp.complex64, f"{data.dtype}"
+        assert scan.dtype == cp.float32, f"{scan.dtype}"
+        assert prb.dtype == cp.complex64, f"{prb.dtype}"
         res = cp.zeros([self.ptheta, self.nz, self.n],
                        dtype='complex64')
         flg = 0  # compute adjoint operator with respect to object
-        self.cl_ptycho.adj(res.data.ptr, data.data.ptr,
-                           scan.data.ptr, prb.data.ptr, flg)  # C++ wrapper, send pointers to GPU arrays
+        self.adj(res.data.ptr, data.data.ptr, scan.data.ptr, prb.data.ptr, flg)
         return res
 
     def adj_ptycho_prb(self, data, scan, psi):
         """Adjoint ptychography probe transform (O*F*), object is fixed"""
+        assert data.dtype == cp.complex64, f"{data.dtype}"
+        assert scan.dtype == cp.float32, f"{scan.dtype}"
+        assert psi.dtype == cp.complex64, f"{psi.dtype}"
         res = cp.zeros([self.ptheta, self.nprb, self.nprb],
                        dtype='complex64')
         flg = 1  # compute adjoint operator with respect to probe
-        self.cl_ptycho.adj(psi.data.ptr, data.data.ptr,
-                           scan.data.ptr, res.data.ptr, flg)  # C++ wrapper, send pointers to GPU arrays
+        self.adj(psi.data.ptr, data.data.ptr, scan.data.ptr, res.data.ptr, flg)
         return res
+
+
+class CGPtychoSolver(PtychoCuFFT):
+    """Solve the ptychography problem using congujate gradient."""
 
     def line_search(self, minf, gamma, u, fu, d, fd):
         """Line search for the step sizes gamma"""
