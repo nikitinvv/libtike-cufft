@@ -135,6 +135,8 @@ class CGPtychoSolver(PtychoCuFFT):
             piter,
             model='gaussian',
             recover_prb=False,
+            gammapsi=1,
+            gammaprb=1,
     ):
         """Conjugate gradients for ptychography.
 
@@ -160,10 +162,6 @@ class CGPtychoSolver(PtychoCuFFT):
                 f = cp.sum(
                     cp.abs(fpsi)**2 - 2 * data * cp.log(cp.abs(fpsi) + 1e-32))
             return f
-
-        # initial gradient steps
-        gammapsi = 1
-        gammaprb = 1
 
         print("# congujate gradient parameters\n"
               "iteration, step size object, step size probe, function min"
