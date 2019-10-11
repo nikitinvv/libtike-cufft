@@ -145,15 +145,32 @@ class PtychoCuFFT(ptychofft):
 class CGPtychoSolver(PtychoCuFFT):
     """Solve the ptychography problem using congujate gradient."""
 
-    def line_search(self, minf, gamma, u, fu, d, fd):
-        """Line search for the step sizes gamma."""
-        while (minf(u, fu) - minf(u + gamma * d, fu + gamma * fd) < 0
-               and gamma > 1e-32):
-            gamma *= 0.5
-        if (gamma <= 1e-32):  # direction not found
-            gamma = 0
-            warnings.warn("Line search failed for conjugate gradient.")
-        return gamma
+    @staticmethod
+    def line_search(f, x, d, step_length=1, step_shrink=0.5):
+        """Return a new step_length using a backtracking line search.
+
+        https://en.wikipedia.org/wiki/Backtracking_line_search
+
+        Parameters
+        ----------
+        f : function(x)
+            The function being optimized.
+        x : vector
+            The current position.
+        d : vector
+            The search direction.
+
+        """
+        assert step_shrink > 0 and step_shrink < 1
+        m = 0  # Some tuning parameter for termination
+        fx = f(x)  # Save the result of f(x) instead of computing it many times
+        # Decrease the step length while the step increases the cost function
+        while f(x + step_length * d) > fx + step_shrink * m:
+            if step_length < 1e-32:
+                warnings.warn("Line search failed for conjugate gradient.")
+                return 0
+            step_length *= step_shrink
+        return step_length
 
     def run(
             self,
@@ -219,7 +236,7 @@ class CGPtychoSolver(PtychoCuFFT):
             gradpsi0 = gradpsi
             # line search
             fdpsi = self.fwd_ptycho(dpsi, scan, prb)
-            gammapsi = self.line_search(minf, 1, psi, fpsi, dpsi, fdpsi)
+            gammapsi = self.line_search(minf, fpsi, fdpsi)
             # update psi
             psi = psi + gammapsi * dpsi
 
@@ -250,7 +267,7 @@ class CGPtychoSolver(PtychoCuFFT):
                 gradprb0 = gradprb
                 # line search
                 fdprb = self.fwd_ptycho(psi, scan, dprb)
-                gammaprb = self.line_search(minf, 1, psi, fprb, psi, fdprb)
+                gammaprb = self.line_search(minf, fprb, fdprb)
                 # update prb
                 prb = prb + gammaprb * dprb
 
