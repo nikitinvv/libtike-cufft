@@ -64,8 +64,9 @@ if __name__ == "__main__":
             prb = prb0.copy().swapaxes(1, 2)
         else:
             prb = prb0.copy()
-        psi, prb = slv.cg_ptycho_batch(
-            data, psi, scan, prb, piter, model, recover_prb)
+        result = slv.run_batch(
+            data, psi, scan, prb, piter=piter, model=model, recover_prb=recover_prb)
+        psi, prb = result['psi'], result['prb']
 
     # Save result
     name = str(model)+str(piter)
