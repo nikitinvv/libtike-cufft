@@ -180,7 +180,7 @@ class CGPtychoSolver(PtychoCuFFT):
         assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
 
         # minimization functional
-        def minf(psi, fpsi):
+        def minf(fpsi):
             if model == 'gaussian':
                 f = cp.linalg.norm(cp.abs(fpsi) - cp.sqrt(data))**2
             elif model == 'poisson':
@@ -258,7 +258,7 @@ class CGPtychoSolver(PtychoCuFFT):
             if (np.mod(i, 8) == 0):
                 fpsi = self.fwd_ptycho(psi, scan, prb)
                 print("%4d, %.3e, %.3e, %.7e" %
-                      (i, gammapsi, gammaprb, minf(psi, fpsi)))
+                      (i, gammapsi, gammaprb, minf(fpsi)))
 
         return {
             'psi': psi,
