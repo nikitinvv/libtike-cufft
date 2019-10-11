@@ -164,8 +164,6 @@ class CGPtychoSolver(PtychoCuFFT):
             piter,
             model='gaussian',
             recover_prb=False,
-            gammapsi=1,
-            gammaprb=1,
     ):
         """Conjugate gradients for ptychography.
 
@@ -177,8 +175,6 @@ class CGPtychoSolver(PtychoCuFFT):
             The number of gradient steps to take.
         recover_prb : bool
             Whether to recover the probe or assume the given probe is correct.
-        gammapsi, gammaprb : float
-            The initial step sizes for the psi and prb gradient descent.
 
         """
         assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
@@ -223,10 +219,7 @@ class CGPtychoSolver(PtychoCuFFT):
             gradpsi0 = gradpsi
             # line search
             fdpsi = self.fwd_ptycho(dpsi, scan, prb)
-            if (recover_prb):
-                # reset gamma
-                gammapsi = 1
-            gammapsi = self.line_search(minf, gammapsi, psi, fpsi, dpsi, fdpsi)
+            gammapsi = self.line_search(minf, 1, psi, fpsi, dpsi, fdpsi)
             # update psi
             psi = psi + gammapsi * dpsi
 
@@ -257,7 +250,6 @@ class CGPtychoSolver(PtychoCuFFT):
                 gradprb0 = gradprb
                 # line search
                 fdprb = self.fwd_ptycho(psi, scan, dprb)
-                # start with gammaprb = 1 on each iteration
                 gammaprb = self.line_search(minf, 1, psi, fprb, psi, fdprb)
                 # update prb
                 prb = prb + gammaprb * dprb
@@ -271,6 +263,4 @@ class CGPtychoSolver(PtychoCuFFT):
         return {
             'psi': psi,
             'prb': prb,
-            'gammaprb': gammaprb,
-            'gammapsi': gammapsi,
         }
