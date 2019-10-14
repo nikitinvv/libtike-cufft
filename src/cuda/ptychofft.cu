@@ -73,7 +73,7 @@ void ptychofft::fwd(size_t g_, size_t f_, size_t scan_, size_t prb_)
   prb = (float2 *)prb_;
 
 	// take part for the probe multiplication and shift it via FFT
-	takepart<<<GS3d0, BS3d>>>(g, f, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
+	takepart<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
 
 	//// SHIFT start
 	// Fourier transform
@@ -87,7 +87,7 @@ void ptychofft::fwd(size_t g_, size_t f_, size_t scan_, size_t prb_)
 	//// SHIFT end
 
 	// probe multiplication of the object array
-	mulprobe<<<GS3d0, BS3d>>>(g, f, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
+	mulprobe<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
 	// Fourier transform
 	cufftExecC2C(plan2d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_FORWARD);
 }
@@ -122,7 +122,7 @@ void ptychofft::adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg)
 	}
 	else if (flg == 1)// adjoint object multiplication operator
 	{
-		mulaobj<<<GS3d0, BS3d>>>(prb, g, f, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
+		mulaobj<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
 
 		//// SHIFT start
 		// Fourier transform
@@ -134,6 +134,6 @@ void ptychofft::adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg)
 		cufftExecC2C(plan2dshift, (cufftComplex *)g, (cufftComplex *)g, CUFFT_INVERSE);
 		//// SHIFT end
 
-		setpartprobe<<<GS3d0, BS3d>>>(prb, g, f, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
+		setpartprobe<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
 	}
 }

@@ -3,10 +3,10 @@
 #define PI 3.1415926535
 
 // probe multiplication of the object array part
-void __global__ mulprobe(float2 *g, float2 *f, float2 *prb,
-                         float *scanx, float *scany,
-                         int Ntheta, int Nz, int N, int Nscan, int Nprb,
-                         int Ndetx, int Ndety)
+void __global__ mulprobe(
+  float2 *f, float2 *g, float2 *prb,
+  float *scanx, float *scany,
+  int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   int tx = blockDim.x * blockIdx.x + threadIdx.x;
   int ty = blockDim.y * blockIdx.y + threadIdx.y;
@@ -45,8 +45,10 @@ void __global__ mulprobe(float2 *g, float2 *f, float2 *prb,
 }
 
 // adjoint probe multiplication of the object array part
-void __global__ mulaprobe(float2 *f, float2 *g, float2 *prb, float *scanx, float *scany,
-						  int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
+void __global__ mulaprobe(
+  float2 *f, float2 *g, float2 *prb,
+  float *scanx, float *scany,
+  int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   int tx = blockDim.x * blockIdx.x + threadIdx.x;
   int ty = blockDim.y * blockIdx.y + threadIdx.y;
@@ -92,8 +94,10 @@ void __global__ mulaprobe(float2 *f, float2 *g, float2 *prb, float *scanx, float
 }
 
 // adjoint object part multiplication of the probe array
-void __global__ mulaobj(float2 *prb, float2 *g, float2 *f, float *scanx, float *scany,
-						int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
+void __global__ mulaobj(
+  float2 *f, float2 *g, float2 *prb,
+  float *scanx, float *scany,
+  int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   int tx = blockDim.x * blockIdx.x + threadIdx.x;
   int ty = blockDim.y * blockIdx.y + threadIdx.y;
@@ -139,8 +143,10 @@ void __global__ mulaobj(float2 *prb, float2 *g, float2 *f, float *scanx, float *
 }
 
 // take part of the object array
-void __global__ takepart(float2 *g, float2 *f, float2 *prb, float *scanx, float *scany,
-						 int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
+void __global__ takepart(
+  float2 *f, float2 *g, float2 *prb,
+  float *scanx, float *scany,
+  int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   int tx = blockDim.x * blockIdx.x + threadIdx.x;
   int ty = blockDim.y * blockIdx.y + threadIdx.y;
@@ -177,8 +183,10 @@ void __global__ takepart(float2 *g, float2 *f, float2 *prb, float *scanx, float 
 }
 
 // simultaneous writing to the object array
-void __global__ setpartobj(float2 *f, float2 *g, float2 *prb, float *scanx, float *scany,
-						   int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
+void __global__ setpartobj(
+  float2 *f, float2 *g, float2 *prb,
+  float *scanx, float *scany,
+  int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   int tx = blockDim.x * blockIdx.x + threadIdx.x;
   int ty = blockDim.y * blockIdx.y + threadIdx.y;
@@ -216,9 +224,10 @@ void __global__ setpartobj(float2 *f, float2 *g, float2 *prb, float *scanx, floa
 }
 
 // simultaneous writing to the probe array
-void __global__ setpartprobe(float2 *prb, float2 *g, float2 *f, float *scanx, float *scany,
-							 int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
-
+void __global__ setpartprobe(
+  float2 *f, float2 *g, float2 *prb,
+  float *scanx, float *scany,
+	int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   int tx = blockDim.x * blockIdx.x + threadIdx.x;
   int ty = blockDim.y * blockIdx.y + threadIdx.y;
