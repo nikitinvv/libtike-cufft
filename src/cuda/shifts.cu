@@ -1,6 +1,8 @@
+// This module defines interpolation related CUDA kernels for ptychography.
+
 // Compute exp(1j * dir * dx), exp(1j * dir * dy) where dx, dy are in (-1, 1)
-// and correspond to shifts to nearest integer.
-// dir is the shift direction: 1 for forward and -1 for backward.
+// and correspond to shifts to nearest integer. dir is the shift direction: 1
+// for forward and -1 for backward.
 void __global__ takeshifts(float2 *shiftx, float2 *shifty, float *scanx,
                            float *scany, int dir, int Ntheta, int Nscan)
 {
@@ -19,8 +21,8 @@ void __global__ takeshifts(float2 *shiftx, float2 *shifty, float *scanx,
   shifty[ind].y = sinf(2 * PI * dir * modff(scany[ind], &intpart));
 }
 
-// Perform shifts in the frequency domain by multiplication
-// with exp(1j * dx), exp(1j * dy)
+// Perform shifts in the frequency domain by multiplication with exp(1j * dx),
+// exp(1j * dy).
 void __global__ shifts(float2 *f, float2 *shiftx, float2 *shifty,
                        int Ntheta, int Nscan, int NdetxNdety, int NprbNprb)
 {
