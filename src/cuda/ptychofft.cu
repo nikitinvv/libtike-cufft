@@ -1,5 +1,6 @@
 #include "ptychofft.cuh"
-#include "kernels.cuh"
+#include "kernels.cu"
+#include "shifts.cu"
 
 // constructor, memory allocation
 ptychofft::ptychofft(size_t ptheta, size_t nz, size_t n, size_t nscan,
