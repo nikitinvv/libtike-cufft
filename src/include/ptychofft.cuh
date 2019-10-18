@@ -22,6 +22,8 @@ class ptychofft
 	dim3 GS3d1;
 	dim3 GS3d2;
 
+  void shiftg(float2 *, float *, float *, int);
+
 public:
   size_t ptheta; // number of projections
   size_t nz;	 // object vertical size
