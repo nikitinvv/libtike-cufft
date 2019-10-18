@@ -4,8 +4,6 @@
 // each thread needs to do its work on the f, g, and prb arrays for the various
 // kernels defined here.
 
-#define PI 3.1415926535
-
 // Compute the array index for a thread in the f, g, and prb matricies. Returns
 // nonzero if probe position is negative.
 int __device__ compute_indices(

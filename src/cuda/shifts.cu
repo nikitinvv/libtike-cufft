@@ -1,5 +1,7 @@
 // This module defines interpolation related CUDA kernels for ptychography.
 
+#define PI 3.1415926535
+
 // Compute exp(1j * dir * dx), exp(1j * dir * dy) where dx, dy are in (-1, 1)
 // and correspond to shifts to nearest integer. dir is the shift direction: 1
 // for forward and -1 for backward.
