@@ -9,6 +9,7 @@ class ptychofft
 	float2 *prb;	// probe function
 	float *scanx;   // x scan positions
 	float *scany;   // y scan positions
+  // Negative scan positions are skipped in kernel executions.
 	float2 *shiftx; // x shift (-1,1) of scan positions to nearest integer
 	float2 *shifty; // y shift (-1,1) of scan positions to nearest integer
 

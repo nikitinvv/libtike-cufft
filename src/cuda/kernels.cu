@@ -6,8 +6,9 @@
 
 #define PI 3.1415926535
 
-// Compute the array index for a thread in the f, g, and prb matricies.
-void __device__ compute_indices(
+// Compute the array index for a thread in the f, g, and prb matricies. Returns
+// nonzero if probe position is negative.
+int __device__ compute_indices(
   size_t* const f_index, size_t* const g_index, size_t* const prb_index,
   const float * const scanx, const float * const scany,
   const int Ntheta, const int Nz, const int N, const int Nscan, const int Nprb,
@@ -22,14 +23,14 @@ void __device__ compute_indices(
   const int ix = tx % Nprb;
   const int iy = tx / Nprb;
 
+  // closest integers for scan positions
+  const int stx = roundf(scanx[ty + tz * Nscan]);
+  const int sty = roundf(scany[ty + tz * Nscan]);
+  // skip scans where the probe position is negative (undefined)
+  if (stx < 0 || sty < 0) return 1;
+
   if (f_index != NULL)
   {
-    // closest integers for scan positions
-    const int stx = roundf(scanx[ty + tz * Nscan]);
-    const int sty = roundf(scany[ty + tz * Nscan]);
-    // skip scans where the probe position is negative (undefined)
-    if (stx < 0 || sty < 0) return;
-
     // coordinates in the f array
     *f_index = (
       + (stx + ix)
@@ -62,6 +63,8 @@ void __device__ compute_indices(
       + tz * Nprb * Nprb
     );
   }
+
+  return 0;
 }
 
 // Multiply the probe array (prb) by the patches (g) extracted from the object.
@@ -71,9 +74,12 @@ void __global__ mulprobe(
   int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   size_t g_index = 0, prb_index = 0;
-  compute_indices(
-    NULL, &g_index, &prb_index,
-    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
+  if (compute_indices(
+        NULL, &g_index, &prb_index,
+        scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
+  ){
+    return;
+  }
   float2 g0 = g[g_index];
   float2 prb0 = prb[prb_index];
   // multiplication in complex variables
@@ -89,9 +95,12 @@ void __global__ mulaprobe(
   int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   size_t g_index = 0, prb_index = 0;
-  compute_indices(
+  if (compute_indices(
     NULL, &g_index, &prb_index,
-    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
+    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
+  ){
+    return;
+  }
   float2 g0 = g[g_index];
   float2 prb0 = prb[prb_index];
   // multiplication in complex variables
@@ -107,9 +116,12 @@ void __global__ mulaobj(
   int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   size_t f_index = 0, g_index = 0;
-  compute_indices(
+  if (compute_indices(
     &f_index, &g_index, NULL,
-    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
+    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
+  ){
+    return;
+  }
   float2 f0 = f[f_index];
   float2 g0 = g[g_index];
   // multiplication in complex variables
@@ -126,9 +138,12 @@ void __global__ takepart(
   int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   size_t f_index = 0, g_index = 0;
-  compute_indices(
+  if (compute_indices(
     &f_index, &g_index, NULL,
-    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
+    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
+  ){
+    return;
+  }
   g[g_index].x = f[f_index].x;
   g[g_index].y = f[f_index].y;
 }
@@ -140,9 +155,12 @@ void __global__ setpartobj(
   int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   size_t f_index = 0, g_index = 0;
-  compute_indices(
+  if (compute_indices(
     &f_index, &g_index, NULL,
-    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
+    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
+  ){
+    return;
+  }
   atomicAdd(&f[f_index].x, g[g_index].x);
   atomicAdd(&f[f_index].y, g[g_index].y);
 }
@@ -154,9 +172,12 @@ void __global__ setpartprobe(
 	int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
 {
   size_t g_index = 0, prb_index = 0;
-  compute_indices(
+  if (compute_indices(
     NULL, &g_index, &prb_index,
-    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
+    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
+  ){
+    return;
+  }
   atomicAdd(&prb[prb_index].x, g[g_index].x);
   atomicAdd(&prb[prb_index].y, g[g_index].y);
 }
