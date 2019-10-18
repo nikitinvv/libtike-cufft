@@ -64,7 +64,7 @@ void __device__ compute_indices(
   }
 }
 
-// probe multiplication of the object array part
+// Multiply the probe array (prb) by the patches (g) extracted from the object.
 void __global__ mulprobe(
   float2 *f, float2 *g, float2 *prb,
   float *scanx, float *scany,
@@ -82,7 +82,7 @@ void __global__ mulprobe(
   g[g_index].y = c * (prb0.x * g0.y + prb0.y * g0.x);
 }
 
-// adjoint probe multiplication of the object array part
+// Multiply the object patches (g) by the complex conjugate of the probe (prb).
 void __global__ mulaprobe(
   float2 *f, float2 *g, float2 *prb,
   float *scanx, float *scany,
@@ -100,7 +100,7 @@ void __global__ mulaprobe(
   g[g_index].y = c * (prb0.x * g0.y - prb0.y * g0.x);
 }
 
-// adjoint object part multiplication of the probe array
+// Multiply the object patches (g) by the complex conjugate of the object (f).
 void __global__ mulaobj(
   float2 *f, float2 *g, float2 *prb,
   float *scanx, float *scany,
@@ -118,7 +118,8 @@ void __global__ mulaobj(
   g[g_index].y = c * (f0.x * g0.y - f0.y * g0.x);
 }
 
-// take part of the object array
+// Take patches of the object array (f) where the probe illuminates and put them
+// into the far-field array (g).
 void __global__ takepart(
   float2 *f, float2 *g, float2 *prb,
   float *scanx, float *scany,
@@ -132,7 +133,7 @@ void __global__ takepart(
   g[g_index].y = f[f_index].y;
 }
 
-// simultaneous writing to the object array
+// Add the object patches (g) to the object array (f).
 void __global__ setpartobj(
   float2 *f, float2 *g, float2 *prb,
   float *scanx, float *scany,
@@ -142,13 +143,11 @@ void __global__ setpartobj(
   compute_indices(
     &f_index, &g_index, NULL,
     scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
-  // Multiplication in complex variables with simultaneous writing to the object
-  // array
   atomicAdd(&f[f_index].x, g[g_index].x);
   atomicAdd(&f[f_index].y, g[g_index].y);
 }
 
-// simultaneous writing to the probe array
+// Add the object patches (g) to the probe array (prb).
 void __global__ setpartprobe(
   float2 *f, float2 *g, float2 *prb,
   float *scanx, float *scany,
@@ -158,8 +157,6 @@ void __global__ setpartprobe(
   compute_indices(
     NULL, &g_index, &prb_index,
     scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety);
-  // Multiplication in complex variables with simultaneous writing to the object
-  // array
   atomicAdd(&prb[prb_index].x, g[g_index].x);
   atomicAdd(&prb[prb_index].y, g[g_index].y);
 }

@@ -105,7 +105,7 @@ void ptychofft::adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg)
 
 	// inverse Fourier transform
 	cufftExecC2C(plan2d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_INVERSE);
-	if (flg == 0)// adjoint probe multiplication operator
+	if (flg == 0)  // adjoint object multiplication operator
 	{
 		mulaprobe<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
 
@@ -121,7 +121,7 @@ void ptychofft::adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg)
 
 		setpartobj<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
 	}
-	else if (flg == 1)// adjoint object multiplication operator
+	else if (flg == 1)  // adjoint probe multiplication operator
 	{
 		mulaobj<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
 
