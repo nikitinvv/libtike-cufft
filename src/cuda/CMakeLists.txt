@@ -22,6 +22,7 @@ include_directories(${PYTHON_INCLUDE_PATH})
 set_source_files_properties(ptychofft.i PROPERTIES CPLUSPLUS ON)
 swig_add_library(ptychofft LANGUAGE python SOURCES ptychofft.i ptychofft.cu)
 swig_link_libraries(ptychofft cudart cufft)
+target_compile_features(ptychofft PUBLIC cxx_std_11)
 
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ptychofft.py" DESTINATION ptychocg)
 install(TARGETS ptychofft LIBRARY DESTINATION ptychocg)
