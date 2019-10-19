@@ -6,12 +6,6 @@
 #include "ptychofft.cuh"
 %}
 
-%include "numpy.i"
-
-%init %{
-import_array();
-%}
-
 class ptychofft
 {
   bool is_free = false;
