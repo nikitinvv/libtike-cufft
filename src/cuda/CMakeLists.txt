@@ -5,24 +5,27 @@ set(CMAKE_CUDA_HOST_COMPILER ${CMAKE_CXX_COMPILER})
 enable_language(CUDA)
 include_directories(${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES})
 
-# These policies are related to SWIG python libraries naming
-cmake_policy(SET CMP0078 NEW)
-cmake_policy(SET CMP0086 NEW)
-find_package(SWIG REQUIRED)
-include(${SWIG_USE_FILE})
+# Build the CUDA components as a regular static library
+add_library(libptychofft STATIC ptychofft.cu)
+target_link_libraries(libptychofft PRIVATE cudart cufft)
+target_compile_features(libptychofft PUBLIC cxx_std_11)
+set_target_properties(libptychofft PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
+    CUDA_VISIBILITY_PRESET "hidden"
+    # CUDA_SEPARABLE_COMPILATION ON
+    PREFIX ""
+)
 
-# SWIG requires the Python header
-find_package(PythonLibs REQUIRED)
-include_directories(${PYTHON_INCLUDE_PATH})
-# TODO: Is NumPy required?
-# find_package(NumPy REQUIRED)
-# include_directories(${NumPy_INCLUDE_DIRS})
-
-# Must tell CMake that SWIG interface files are CXX files
-set_source_files_properties(ptychofft.i PROPERTIES CPLUSPLUS ON)
-swig_add_library(ptychofft LANGUAGE python SOURCES ptychofft.i ptychofft.cu)
-swig_link_libraries(ptychofft cudart cufft)
-target_compile_features(ptychofft PUBLIC cxx_std_11)
-
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ptychofft.py" DESTINATION ptychocg)
-install(TARGETS ptychofft LIBRARY DESTINATION ptychocg)
+# Compile a wrapper using the desired method
+if(${EXTENSION_WRAPPER} STREQUAL swig)
+  message("-- Using SWIG as the Python extension wrapper.")
+  add_subdirectory(swig)
+elseif(${EXTENSION_WRAPPER} STREQUAL pybind11)
+  message("-- Using pybind11 as the Python extension wrapper.")
+  add_subdirectory(pybind11)
+else()
+  message(
+    FATAL_ERROR
+    "${EXTENSION_WRAPPER} is not a valid Python extension wrapper."
+  )
+endif()

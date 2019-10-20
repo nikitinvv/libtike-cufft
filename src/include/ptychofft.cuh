@@ -1,5 +1,8 @@
 #include <cufft.h>
 
+#ifndef _PTYCHOFFT
+#define _PTYCHOFFT
+
 class ptychofft
 {
   bool is_free = false;
@@ -40,3 +43,5 @@ public:
 	void adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg);
   void free();
 };
+
+#endif
