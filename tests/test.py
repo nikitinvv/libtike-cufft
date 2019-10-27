@@ -43,8 +43,8 @@ if __name__ == "__main__":
 
     # Class gpu solver
     with pt.CGPtychoSolver(nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta, igpu) as slv:
-        # Compute data
-        data = slv.fwd_ptycho_batch(psi0, scan, prb0)
+        # Compute intensity data on the detector |FQ|**2
+        data = np.abs(slv.fwd_ptycho_batch(psi0, scan, prb0))**2
         dxchange.write_tiff(data, 'data', overwrite=True)
 
         # Initial guess
@@ -62,16 +62,16 @@ if __name__ == "__main__":
     name = str(model)+str(piter)
     dxchange.write_tiff(np.angle(psi),
                         'rec/psiang'+name, overwrite=True)
-    dxchange.write_tiff(np.abs(psi),  'rec/prbamp'+name, overwrite=True)
+    dxchange.write_tiff(np.abs(psi).get(),  'rec/prbamp'+name, overwrite=True)
 
     # recovered
-    dxchange.write_tiff(np.angle(prb),
+    dxchange.write_tiff(np.angle(prb).get(),
                         'rec/prbangle'+name, overwrite=True)
-    dxchange.write_tiff(np.abs(prb),  'rec/prbamp'+name, overwrite=True)
+    dxchange.write_tiff(np.abs(prb).get(),  'rec/prbamp'+name, overwrite=True)
     # init
-    dxchange.write_tiff(np.angle(prb0),
+    dxchange.write_tiff(np.angle(prb0).get(),
                         'rec/prb0angle'+name, overwrite=True)
-    dxchange.write_tiff(np.abs(prb0),
+    dxchange.write_tiff(np.abs(prb0).get(),
                         'rec/prb0amp'+name, overwrite=True)
 
     # plot result
@@ -79,34 +79,34 @@ if __name__ == "__main__":
     plt.figure(figsize=(11, 7))
     plt.subplot(2, 2, 1)
     plt.title('scan positions')
-    plt.plot(scan[0, 0, :], scan[1, 0, :],
+    plt.plot(scan[0, 0, :].get(), scan[1, 0, :].get(),
              '.', markersize=1.5, color='blue')
     plt.xlim([0, n])
     plt.ylim([0, nz])
     plt.gca().invert_yaxis()
     plt.subplot(2, 4, 1)
     plt.title('correct prb phase')
-    plt.imshow(np.angle(prb0[0]), cmap='gray')
+    plt.imshow(np.angle(prb0[0]).get(), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 4, 2)
     plt.title('correct prb amplitude')
-    plt.imshow(np.abs(prb0[0]), cmap='gray')
+    plt.imshow(np.abs(prb0[0]).get(), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 4, 3)
     plt.title('retrieved probe phase')
-    plt.imshow(np.angle(prb[0]), cmap='gray')
+    plt.imshow(np.angle(prb[0]).get(), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 4, 4)
     plt.title('retrieved probe amplitude')
-    plt.imshow(np.abs(prb[0]), cmap='gray')
+    plt.imshow(np.abs(prb[0]).get(), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 2, 3)
     plt.title('object phase')
-    plt.imshow(np.angle(psi[0]), cmap='gray')
+    plt.imshow(np.angle(psi[0]).get(), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 2, 4)
     plt.title('object amplitude')
-    plt.imshow(np.abs(psi[0]), cmap='gray')
+    plt.imshow(np.abs(psi[0]).get(), cmap='gray')
     plt.colorbar()
     plt.savefig('result.png', dpi=600)
     print("See result.png and tiff files in rec/ folder")
