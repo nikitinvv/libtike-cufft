@@ -87,7 +87,7 @@ class PtychoCuFFT(ptychofft):
         assert scan.dtype == np.float32, f"{scan.dtype}"
         assert prb.dtype == np.complex64, f"{prb.dtype}"
         data = np.zeros([self.ntheta, self.nscan, self.ndety,
-                         self.ndetx], dtype='float32')
+                         self.ndetx], dtype='complex64')
         # angle partitions in ptychography
         for k in range(0, self.ntheta // self.ptheta):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
@@ -96,9 +96,9 @@ class PtychoCuFFT(ptychofft):
             scan_gpu = cp.array(scan[:, ids])
             prb_gpu = cp.array(prb[ids])
             # compute part on GPU
-            data_gpu = cp.abs(self.fwd_ptycho(psi_gpu, scan_gpu, prb_gpu))**2
+            data_gpu = self.fwd_ptycho(psi_gpu, scan_gpu, prb_gpu)
             # copy to CPU
-            data[ids] = data_gpu.get()
+            data[ids] = data_gpu.get()            
         return data
 
     def adj_ptycho(self, data, scan, prb):
@@ -110,6 +110,25 @@ class PtychoCuFFT(ptychofft):
         flg = 0  # compute adjoint operator with respect to object
         self.adj(res.data.ptr, data.data.ptr, scan.data.ptr, prb.data.ptr, flg)
         return res
+
+    def adj_ptycho_batch(self, data, scan, prb):
+        """Batch of Ptychography transform (FQ)."""
+        assert data.dtype == np.complex64, f"{data.dtype}"
+        assert scan.dtype == np.float32, f"{scan.dtype}"
+        assert prb.dtype == np.complex64, f"{prb.dtype}"
+        psi = np.zeros([self.ntheta, self.nz, self.n], dtype='complex64')
+        # angle partitions in ptychography
+        for k in range(0, self.ntheta // self.ptheta):
+            ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
+            # copy to GPU
+            data_gpu = cp.array(data[ids])
+            scan_gpu = cp.array(scan[:, ids])
+            prb_gpu = cp.array(prb[ids])
+            # compute part on GPU
+            psi_gpu = self.adj_ptycho(data_gpu, scan_gpu, prb_gpu)
+            # copy to CPU
+            psi[ids] = psi_gpu.get()
+        return psi
 
     def adj_ptycho_prb(self, data, scan, psi):
         """Adjoint ptychography probe transform (O*F*), object is fixed."""
