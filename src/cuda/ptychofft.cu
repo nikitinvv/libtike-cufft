@@ -1,6 +1,5 @@
 #include "ptychofft.cuh"
 #include "kernels.cu"
-#include "shifts.cu"
 
 // constructor, memory allocation
 ptychofft::ptychofft(size_t ptheta, size_t nz, size_t n, size_t nscan,
@@ -8,24 +7,12 @@ ptychofft::ptychofft(size_t ptheta, size_t nz, size_t n, size_t nscan,
 ) :
   ptheta(ptheta), nz(nz), n(n), nscan(nscan), ndetx(ndetx), ndety(ndety),
   nprb(nprb)
-{
-	// allocate memory on GPU
-	cudaMalloc((void **)&shiftx, ptheta * nscan * sizeof(float2));
-	cudaMalloc((void **)&shifty, ptheta * nscan * sizeof(float2));
-
+{	
 	// create batched 2d FFT plan on GPU with sizes (ndetx,ndety)
 	int ffts[2];
 	ffts[0] = ndetx;
 	ffts[1] = ndety;
 	cufftPlanMany(&plan2d, 2, ffts, ffts, 1, ndetx * ndety, ffts, 1, ndetx * ndety, CUFFT_C2C, ptheta * nscan);
-
-	// create batched 2d FFT plan on GPU with sizes (nprb,nprb)	acting on arrays with sizes (ndetx,ndety)
-	ffts[0] = nprb;
-	ffts[1] = nprb;
-	int inembed[2];
-	inembed[0] = ndetx;
-	inembed[1] = ndety;
-	cufftPlanMany(&plan2dshift, 2, ffts, inembed, 1, ndetx * ndety, inembed, 1, ndetx * ndety, CUFFT_C2C, ptheta * nscan);
 
 	// init 3d thread block on GPU
 	BS3d.x = 32;
@@ -55,9 +42,7 @@ ptychofft::~ptychofft()
 void ptychofft::free()
 {
   if(!is_free)
-  {
-    cudaFree(shiftx);
-    cudaFree(shifty);
+  {    
     cufftDestroy(plan2d);
     is_free = true;
   }
@@ -73,11 +58,8 @@ void ptychofft::fwd(size_t g_, size_t f_, size_t scan_, size_t prb_)
   scany = &((float *)scan_)[ptheta * nscan];
   prb = (float2 *)prb_;
 
-	// take part for the probe multiplication and shift it via FFT
-	takepart<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
-	this->shiftg(g, scanx, scany, 1);
 	// probe multiplication of the object array
-	mulprobe<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
+	muloperator<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety, 2); //flg==2 forward transform
 	// Fourier transform
 	cufftExecC2C(plan2d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_FORWARD);
 }
@@ -93,39 +75,7 @@ void ptychofft::adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg)
   prb = (float2 *)prb_;
 
 	// inverse Fourier transform
-	cufftExecC2C(plan2d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_INVERSE);
-	if (flg == 0)  // adjoint object multiplication operator
-	{
-		mulaprobe<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
-    this->shiftg(g, scanx, scany, -1);
-		setpartobj<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
-	}
-	else if (flg == 1)  // adjoint probe multiplication operator
-	{
-		mulaobj<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
-    this->shiftg(g, scanx, scany, -1);
-		setpartprobe<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety);
-	}
-}
-
-// Interpolate the object patches (g) by some shift (-1, 1) onto the probe
-// positions. The probe is assumed to be padded by one index of zeros on all
-// sidez so we can ignore edge effects.
-void ptychofft::shiftg(
-  float2 *g,
-  float *const scanx, float *const scany, const int direction)
-{
-  // Fourier transform
-  cufftExecC2C(plan2dshift, (cufftComplex *)g, (cufftComplex *)g,
-               CUFFT_FORWARD);
-  // compute exp(1j dx), exp(1j dy) where dx, dy are in (-1, 1) and correspond
-  // to shifts to nearest integer
-  takeshifts<<<GS3d2, BS3d>>>(shiftx, shifty, scanx, scany, direction,
-                              ptheta, nscan);
-  // perform shifts in the frequency domain by multiplication with exp(-1j dx),
-  // exp(-1j dy) - backward
-  shifts<<<GS3d1, BS3d>>>(g, shiftx, shifty, ptheta, nscan, ndetx * ndety,
-                          nprb * nprb);
-  cufftExecC2C(plan2dshift, (cufftComplex *)g, (cufftComplex *)g,
-               CUFFT_INVERSE);
+	cufftExecC2C(plan2d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_INVERSE);	
+	// adjoint probe (flg==0) or object (flg=1) multiplication operator
+	muloperator<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety, flg);	
 }

@@ -15,7 +15,7 @@ if __name__ == "__main__":
     n = 600  # horizontal size
     nz = 276  # vertical size
     ntheta = 1  # number of projections
-    nscan = 10  # number of scan positions [max 5706 for the data example]
+    nscan = 100  # number of scan positions [max 5706 for the data example]
     nprb = 128  # probe size
     ndetx = 128  # detector x size
     ndety = 128  # detector y size
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     # read scan positions
     scan = np.ones([2, ntheta, nscan], dtype='float32')
     scan[:, 0] = np.load('model/coords.npy')[:, :nscan].astype('float32')
-
+    
     # read object
     psi0 = np.ones([ntheta, nz, n], dtype='complex64')
     psiamp = dxchange.read_tiff('model/initpsiamp.tiff').astype('float32')
@@ -42,13 +42,17 @@ if __name__ == "__main__":
         # Compute forward operator FQpsi
         t1 = slv.fwd_ptycho_batch(psi0, scan, prb0)
         t2 = slv.adj_ptycho_batch(t1, scan, prb0)
+        t3 = slv.adj_ptycho_batch_prb(t1, scan, psi0)
         a = np.sum(psi0*np.conj(t2))
         b = np.sum(t1*np.conj(t1))
+        c = np.sum(prb0*np.conj(t3))
         print('Adjoint test')
-        print('<FQpsi,FQpsi> = ', a)
-        print('<psi,Q*F*FQpsi> = ', b)
-        print('<FQpsi,FQpsi> - <psi,Q*F*FQpsi> = ', a-b)         
-        if ((a-b)/a<1e-3):
+        print('<FQP,FQP> = ', a)
+        print('<P,Q*F*FQP> = ', b)
+        print('<Q,P*F*FPQ> = ', c)
+        print('<FQP,FQP> - <P,Q*F*FQP> = ', a-b)         
+        print('<FQP,FQP> - <Q,P*F*FPQ> = ', a-c)         
+        if (((a-b)/a<1e-3)&((a-c)/a<1e-3)):
             print('PASSED')
         else:
             print('NOT PASSED')            

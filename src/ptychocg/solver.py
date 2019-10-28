@@ -140,6 +140,25 @@ class PtychoCuFFT(ptychofft):
         self.adj(psi.data.ptr, data.data.ptr, scan.data.ptr, res.data.ptr, flg)
         return res
 
+    def adj_ptycho_batch_prb(self, data, scan, psi):
+        """Batch of Ptychography transform (FQ)."""
+        assert data.dtype == np.complex64, f"{data.dtype}"
+        assert scan.dtype == np.float32, f"{scan.dtype}"
+        assert psi.dtype == np.complex64, f"{psi.dtype}"
+        prb = np.zeros([self.ntheta, self.nprb, self.nprb], dtype='complex64')
+        # angle partitions in ptychography
+        for k in range(0, self.ntheta // self.ptheta):
+            ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
+            # copy to GPU
+            data_gpu = cp.array(data[ids])
+            scan_gpu = cp.array(scan[:, ids])
+            psi_gpu = cp.array(psi[ids])
+            # compute part on GPU
+            prb_gpu = self.adj_ptycho_prb(data_gpu, scan_gpu, psi_gpu)
+            # copy to CPU
+            prb[ids] = prb_gpu.get()
+        return prb
+
     def run(self, data, psi, scan, prb, **kwargs):
         """Placehold for a child's solving function."""
         raise NotImplementedError("Cannot run a base class.")

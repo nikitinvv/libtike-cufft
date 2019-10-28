@@ -10,11 +10,8 @@ class ptychofft
 	float *scanx;   // x scan positions
 	float *scany;   // y scan positions
   // Negative scan positions are skipped in kernel executions.
-	float2 *shiftx; // x shift (-1,1) of scan positions to nearest integer
-	float2 *shifty; // y shift (-1,1) of scan positions to nearest integer
-
+	
 	cufftHandle plan2d;		 // 2D FFT plan
-	cufftHandle plan2dshift; // 2D FFT plan for the shift in the frequency domain
 
 	dim3 BS3d; // 3d thread block on GPU
 
@@ -22,9 +19,7 @@ class ptychofft
 	dim3 GS3d0;
 	dim3 GS3d1;
 	dim3 GS3d2;
-
-  void shiftg(float2 *, float *, float *, int);
-
+  
 public:
   size_t ptheta; // number of projections
   size_t nz;	 // object vertical size
