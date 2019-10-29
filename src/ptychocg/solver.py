@@ -208,7 +208,7 @@ class CGPtychoSolver(PtychoCuFFT):
         print("# congujate gradient parameters\n"
               "iteration, step size object, step size probe, function min"
               )  # csv column headers
-
+        gammaprb = 0
         for i in range(piter):
             # 1) object retrieval subproblem with fixed probe
             # forward operator
