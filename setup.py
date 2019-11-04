@@ -24,4 +24,9 @@ setup(
     package_dir={"": "src"},
     packages=find_packages('src'),
     zip_safe=False,
+    entry_points={
+        'tike.PtychoBackend': [
+            'cudafft = ptychocg.solver:PtychoCuFFT',
+        ],
+    },
 )
