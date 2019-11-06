@@ -8,11 +8,16 @@ ptychofft::ptychofft(size_t ptheta, size_t nz, size_t n, size_t nscan,
   ptheta(ptheta), nz(nz), n(n), nscan(nscan), ndet(ndet),
   nprb(nprb)
 {
-	// create batched 2d FFT plan on GPU with sizes (ndetx,ndety)
-	int ffts[2];
-	ffts[0] = ndet;
-	ffts[1] = ndet;
-	cufftPlanMany(&plan2d, 2, ffts, ffts, 1, ndet * ndet, ffts, 1, ndet * ndet, CUFFT_C2C, ptheta * nscan);
+	// create batched 2D FFT plan on GPU with sizes (ndet, ndet)
+  // transform shape MUST be less than or equal to input and ouput shapes.
+	int ffts[2] = {(int)ndet, (int)ndet};
+	cufftPlanMany(&plan2d, 2,
+    ffts,                 // transform shape
+    ffts, 1, ndet * ndet, // input shape
+    ffts, 1, ndet * ndet, // output shape
+    CUFFT_C2C,
+    ptheta * nscan        // Number of FFTs to do simultaneously
+  );
 
 	// init 3d thread block on GPU
 	BS3d.x = 32;
