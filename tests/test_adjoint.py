@@ -37,7 +37,7 @@ if __name__ == "__main__":
     psi0[0] = psiamp*np.exp(1j*psiang)
 
     # Class gpu solver
-    with pt.CGPtychoSolver(nscan, nprb, ndet, ptheta, nz, n, igpu) as slv:
+    with pt.PtychoCuFFT(nscan, nprb, ndet, ptheta, nz, n) as slv:
         # Compute forward operator FQpsi
         t1 = slv.fwd_ptycho_batch(psi0, scan, prb0)
         t2 = slv.adj_ptycho_batch(t1, scan, prb0)
