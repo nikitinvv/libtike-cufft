@@ -44,7 +44,7 @@ class PtychoCuFFT(ptychofft):
         The pixel width and height of the probe illumination.
     ndet, ndet : int
         The pixel width and height of the detector.
-    ntheta : int
+    ptheta : int
         The number of angular partitions of the data.
     n, nz : int
         The pixel width and height of the reconstructed grid.
@@ -53,7 +53,7 @@ class PtychoCuFFT(ptychofft):
         simultaneously.
     """
 
-    def __init__(self, nscan, nprb, ndet, ntheta, nz, n, ptheta, igpu):
+    def __init__(self, nscan, nprb, ndet, ptheta, nz, n, igpu):
         """Please see help(PtychoCuFFT) for more info."""
         cp.cuda.Device(igpu).use()  # gpu id to use
         # set cupy to use unified memory
@@ -61,7 +61,6 @@ class PtychoCuFFT(ptychofft):
         cp.cuda.set_allocator(pool.malloc)
 
         super().__init__(ptheta, nz, n, nscan, ndet, nprb)
-        self.ntheta = ntheta  # number of projections
 
     def __enter__(self):
         """Return self at start of a with-block."""
@@ -86,10 +85,10 @@ class PtychoCuFFT(ptychofft):
         assert psi.dtype == np.complex64, f"{psi.dtype}"
         assert scan.dtype == np.float32, f"{scan.dtype}"
         assert prb.dtype == np.complex64, f"{prb.dtype}"
-        data = np.zeros([self.ntheta, self.nscan, self.ndet,
+        data = np.zeros([scan.shape[0], self.nscan, self.ndet,
                          self.ndet], dtype='complex64')
         # angle partitions in ptychography
-        for k in range(0, self.ntheta // self.ptheta):
+        for k in range(0, scan.shape[0] // self.ptheta):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
             # copy to GPU
             psi_gpu = cp.array(psi[ids])
@@ -116,9 +115,9 @@ class PtychoCuFFT(ptychofft):
         assert data.dtype == np.complex64, f"{data.dtype}"
         assert scan.dtype == np.float32, f"{scan.dtype}"
         assert prb.dtype == np.complex64, f"{prb.dtype}"
-        psi = np.zeros([self.ntheta, self.nz, self.n], dtype='complex64')
+        psi = np.zeros([scan.shape[0], self.nz, self.n], dtype='complex64')
         # angle partitions in ptychography
-        for k in range(0, self.ntheta // self.ptheta):
+        for k in range(0, scan.shape[0] // self.ptheta):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
             # copy to GPU
             data_gpu = cp.array(data[ids])
@@ -145,9 +144,9 @@ class PtychoCuFFT(ptychofft):
         assert data.dtype == np.complex64, f"{data.dtype}"
         assert scan.dtype == np.float32, f"{scan.dtype}"
         assert psi.dtype == np.complex64, f"{psi.dtype}"
-        prb = np.zeros([self.ntheta, self.nprb, self.nprb], dtype='complex64')
+        prb = np.zeros([scan.shape[0], self.nprb, self.nprb], dtype='complex64')
         # angle partitions in ptychography
-        for k in range(0, self.ntheta // self.ptheta):
+        for k in range(0, scan.shape[0] // self.ptheta):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
             # copy to GPU
             data_gpu = cp.array(data[ids])
@@ -171,7 +170,7 @@ class PtychoCuFFT(ptychofft):
         prb = prb.copy()
 
         # angle partitions in ptychography
-        for k in range(0, self.ntheta // self.ptheta):
+        for k in range(0, scan.shape[0] // self.ptheta):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
             # copy to GPU
             psi_gpu = cp.array(psi[ids])
