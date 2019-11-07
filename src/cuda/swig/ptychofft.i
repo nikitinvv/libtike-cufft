@@ -15,9 +15,9 @@ class ptychofft
 	float2 *prb;	// probe function
 	float *scanx;   // x scan positions
 	float *scany;   // y scan positions
-	
+
 	cufftHandle plan2d; // 2D FFT plan
-	
+
 	dim3 BS3d; // 3d thread block on GPU
 
 	// 3d thread grids on GPU for different kernels
@@ -31,14 +31,13 @@ public:
   size_t nz;	 // object vertical size
   size_t n;	  // object horizontal size
   size_t nscan;  // number of scan positions for 1 projection
-  size_t ndetx;  // detector x size
-  size_t ndety;  // detector y size
+  size_t ndet;  // detector y size
   size_t nprb;   // probe size in 1 dimension
   %mutable;
 
 	// constructor, memory allocation
 	ptychofft(size_t ptheta, size_t nz, size_t n,
-			  size_t nscan, size_t ndetx, size_t ndety, size_t nprb);
+			  size_t nscan, size_t ndet, size_t nprb);
 	// destructor, memory deallocation
 	~ptychofft();
 	// forward ptychography operator FQ

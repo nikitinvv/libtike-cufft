@@ -12,7 +12,7 @@ class ptychofft
 	float2 *prb;	// probe function
 	float2 *scan;   // x,y scan positions
   // Negative scan positions are skipped in kernel executions.
-	
+
 	cufftHandle plan2d;		 // 2D FFT plan
 
 	dim3 BS3d; // 3d thread block on GPU
@@ -21,19 +21,18 @@ class ptychofft
 	dim3 GS3d0;
 	dim3 GS3d1;
 	dim3 GS3d2;
-  
+
 public:
   size_t ptheta; // number of projections
   size_t nz;	 // object vertical size
   size_t n;	  // object horizontal size
   size_t nscan;  // number of scan positions for 1 projection
-  size_t ndetx;  // detector x size
-  size_t ndety;  // detector y size
+  size_t ndet;  // detector size in 1 dimension
   size_t nprb;   // probe size in 1 dimension
 
 	// constructor, memory allocation
 	ptychofft(size_t ptheta, size_t nz, size_t n,
-			  size_t nscan, size_t ndetx, size_t ndety, size_t nprb);
+			  size_t nscan, size_t ndet, size_t nprb);
 	// destructor, memory deallocation
 	~ptychofft();
 	// forward ptychography operator FQ

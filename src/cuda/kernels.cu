@@ -8,7 +8,7 @@
 void __global__ muloperator(float2 *f, float2 *g, float2 *prb,
   const float2 * const scan,
   const int Ntheta, const int Nz, const int N, const int Nscan, const int Nprb,
-  const int Ndetx, const int Ndety, int flg)
+  const int ndet, int flg)
 {
   const int tx = blockDim.x * blockIdx.x + threadIdx.x;
   const int ty = blockDim.y * blockIdx.y + threadIdx.y;
@@ -36,22 +36,21 @@ void __global__ muloperator(float2 *f, float2 *g, float2 *prb,
   // coordinates in the g array
   int g_index = (
       // shift in the object array to the starting point of probe multiplication
-      + (Ndety - Nprb) / 2 * Ndetx
-      + (Ndetx - Nprb) / 2
+      + (ndet - Nprb) / 2 * (ndet + 1)
       // shift in the object array multilication for this thread
       + ix
-      + iy * Ndetx
-      + ty * Ndetx * Ndety
-      + tz * Ndetx * Ndety * Nscan
-    );  
+      + iy * ndet
+      + ty * ndet * ndet
+      + tz * ndet * ndet * Nscan
+    );
   // coordinates in the probe array
   int prb_index = (
       + ix
       + iy * Nprb
       + tz * Nprb * Nprb
     );
-  
-  const float c = 1 / sqrtf(Ndetx * Ndety); // fft constant
+
+  const float c = 1.0 / static_cast<float>(ndet); // fft constant
   float2 tmp; //tmp variable
 
   // Linear interpolation   

@@ -3,16 +3,16 @@
 
 // constructor, memory allocation
 ptychofft::ptychofft(size_t ptheta, size_t nz, size_t n, size_t nscan,
-  size_t ndetx, size_t ndety, size_t nprb
+  size_t ndet, size_t nprb
 ) :
-  ptheta(ptheta), nz(nz), n(n), nscan(nscan), ndetx(ndetx), ndety(ndety),
+  ptheta(ptheta), nz(nz), n(n), nscan(nscan), ndet(ndet),
   nprb(nprb)
-{	
+{
 	// create batched 2d FFT plan on GPU with sizes (ndetx,ndety)
 	int ffts[2];
-	ffts[0] = ndetx;
-	ffts[1] = ndety;
-	cufftPlanMany(&plan2d, 2, ffts, ffts, 1, ndetx * ndety, ffts, 1, ndetx * ndety, CUFFT_C2C, ptheta * nscan);
+	ffts[0] = ndet;
+	ffts[1] = ndet;
+	cufftPlanMany(&plan2d, 2, ffts, ffts, 1, ndet * ndet, ffts, 1, ndet * ndet, CUFFT_C2C, ptheta * nscan);
 
 	// init 3d thread block on GPU
 	BS3d.x = 32;
@@ -24,7 +24,7 @@ ptychofft::ptychofft(size_t ptheta, size_t nz, size_t n, size_t nscan,
 	GS3d0.y = ceil(nscan / (float)BS3d.y);
 	GS3d0.z = ceil(ptheta / (float)BS3d.z);
 
-	GS3d1.x = ceil(ndetx * ndety / (float)BS3d.x);
+	GS3d1.x = ceil(ndet * ndet / (float)BS3d.x);
 	GS3d1.y = ceil(nscan / (float)BS3d.y);
 	GS3d1.z = ceil(ptheta / (float)BS3d.z);
 
@@ -42,7 +42,7 @@ ptychofft::~ptychofft()
 void ptychofft::free()
 {
   if(!is_free)
-  {    
+  {
     cufftDestroy(plan2d);
     is_free = true;
   }
@@ -58,7 +58,7 @@ void ptychofft::fwd(size_t g_, size_t f_, size_t scan_, size_t prb_)
   prb = (float2 *)prb_;
 
 	// probe multiplication of the object array
-	muloperator<<<GS3d0, BS3d>>>(f, g, prb, scan, ptheta, nz, n, nscan, nprb, ndetx, ndety, 2); //flg==2 forward transform
+	muloperator<<<GS3d0, BS3d>>>(f, g, prb, scan, ptheta, nz, n, nscan, nprb, ndet, 2); //flg==2 forward transform
 	// Fourier transform
 	cufftExecC2C(plan2d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_FORWARD);
 }
@@ -75,5 +75,5 @@ void ptychofft::adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg)
 	// inverse Fourier transform
 	cufftExecC2C(plan2d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_INVERSE);
 	// adjoint probe (flg==0) or object (flg=1) multiplication operator
-	muloperator<<<GS3d0, BS3d>>>(f, g, prb, scan, ptheta, nz, n, nscan, nprb, ndetx, ndety, flg);
+	muloperator<<<GS3d0, BS3d>>>(f, g, prb, scan, ptheta, nz, n, nscan, nprb, ndet, flg);
 }

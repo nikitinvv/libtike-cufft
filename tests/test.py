@@ -10,15 +10,14 @@ if __name__ == "__main__":
         igpu = 0
     else:
         igpu = np.int(sys.argv[1])
-  
+
     # sizes
     n = 600  # horizontal size
     nz = 276  # vertical size
     ntheta = 1  # number of projections
     nscan = 1000  # number of scan positions [max 5706 for the data example]
     nprb = 128  # probe size
-    ndetx = 128  # detector x size
-    ndety = 128  # detector y size
+    ndet = 128  # detector x size
     recover_prb = True  # True: recover probe, False: use the initial one
     # Reconstrucion parameters
     model = 'gaussian'  # minimization funcitonal (poisson,gaussian)
@@ -42,7 +41,7 @@ if __name__ == "__main__":
     psi0[0] = psiamp*np.exp(1j*psiang)
 
     # Class gpu solver
-    with pt.CGPtychoSolver(nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta, igpu) as slv:
+    with pt.CGPtychoSolver(nscan, nprb, ndet, ntheta, nz, n, ptheta, igpu) as slv:
         # Compute intensity data on the detector |FQ|**2
         data = np.abs(slv.fwd_ptycho_batch(psi0, scan, prb0))**2
         dxchange.write_tiff(data, 'data', overwrite=True)
