@@ -77,51 +77,51 @@ class PtychoCuFFT(ptychofft):
             output[ids] = function(*inputs_gpu).get()
         return output
 
-    def fwd_ptycho(self, psi, scan, probe):
+    def fwd(self, psi, scan, probe):
         """Ptychography transform (FQ)."""
         assert psi.dtype == cp.complex64, f"{psi.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert probe.dtype == cp.complex64, f"{probe.dtype}"
         res = cp.zeros([self.ptheta, self.nscan, self.ndet, self.ndet],
                        dtype='complex64')
-        self.fwd(res.data.ptr, psi.data.ptr, scan.data.ptr, probe.data.ptr)
+        super().fwd(res.data.ptr, psi.data.ptr, scan.data.ptr, probe.data.ptr)
         return res
 
     def fwd_ptycho_batch(self, psi, scan, probe):
         """Batch of Ptychography transform (FQ)."""
         data = np.zeros([scan.shape[0], self.nscan, self.ndet, self.ndet],
                         dtype='complex64')
-        return self._batch(self.fwd_ptycho, data, psi, scan, probe)
+        return self._batch(self.fwd, data, psi, scan, probe)
 
-    def adj_ptycho(self, farplane, scan, probe):
+    def adj(self, farplane, scan, probe):
         """Adjoint ptychography transform (Q*F*)."""
         assert farplane.dtype == cp.complex64, f"{farplane.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert probe.dtype == cp.complex64, f"{probe.dtype}"
         res = cp.zeros([self.ptheta, self.nz, self.n], dtype='complex64')
         flg = 0  # compute adjoint operator with respect to object
-        self.adj(res.data.ptr, farplane.data.ptr, scan.data.ptr, probe.data.ptr, flg)
+        super().adj(res.data.ptr, farplane.data.ptr, scan.data.ptr, probe.data.ptr, flg)
         return res
 
     def adj_ptycho_batch(self, farplane, scan, probe):
         """Batch of Ptychography transform (FQ)."""
         psi = np.zeros([scan.shape[0], self.nz, self.n], dtype='complex64')
-        return self._batch(self.adj_ptycho, psi, farplane, scan, probe)
+        return self._batch(self.adj, psi, farplane, scan, probe)
 
-    def adj_ptycho_prb(self, farplane, scan, psi):
+    def adj_probe(self, farplane, scan, psi):
         """Adjoint ptychography probe transform (O*F*), object is fixed."""
         assert farplane.dtype == cp.complex64, f"{farplane.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert psi.dtype == cp.complex64, f"{psi.dtype}"
         res = cp.zeros([self.ptheta, self.nprb, self.nprb], dtype='complex64')
         flg = 1  # compute adjoint operator with respect to probe
-        self.adj(psi.data.ptr, farplane.data.ptr, scan.data.ptr, res.data.ptr, flg)
+        super().adj(psi.data.ptr, farplane.data.ptr, scan.data.ptr, res.data.ptr, flg)
         return res
 
     def adj_ptycho_batch_prb(self, farplane, scan, psi):
         """Batch of Ptychography transform (FQ)."""
         probe = np.zeros([scan.shape[0], self.nprb, self.nprb], dtype='complex64')
-        return self._batch(self.adj_ptycho_prb, probe, farplane, scan, psi)
+        return self._batch(self.adj_probe, probe, farplane, scan, psi)
 
     def run(self, data, psi, scan, probe, **kwargs):
         """Placehold for a child's solving function."""
@@ -227,16 +227,16 @@ class CGPtychoSolver(PtychoCuFFT):
         for i in range(piter):
             # 1) object retrieval subproblem with fixed probe
             # forward operator
-            fpsi = self.fwd_ptycho(psi, scan, probe)
+            fpsi = self.fwd(psi, scan, probe)
             # take gradient
             if model == 'gaussian':
-                gradpsi = self.adj_ptycho(
+                gradpsi = self.adj(
                     fpsi - cp.sqrt(data) * cp.exp(1j * cp.angle(fpsi)),
                     scan,
                     probe,
                 ) / (cp.max(cp.abs(probe))**2)
             elif model == 'poisson':
-                gradpsi = self.adj_ptycho(
+                gradpsi = self.adj(
                     fpsi - data * fpsi / (cp.abs(fpsi)**2 + 1e-32),
                     scan,
                     probe,
@@ -250,7 +250,7 @@ class CGPtychoSolver(PtychoCuFFT):
                     (cp.sum(cp.conj(dpsi) * (gradpsi - gradpsi0))) * dpsi)
             gradpsi0 = gradpsi
             # line search
-            fdpsi = self.fwd_ptycho(dpsi, scan, probe)
+            fdpsi = self.fwd(dpsi, scan, probe)
             gammapsi = self.line_search(minf, fpsi, fdpsi)
             # update psi
             psi = psi + gammapsi * dpsi
@@ -258,16 +258,16 @@ class CGPtychoSolver(PtychoCuFFT):
             if (recover_prb):
                 # 2) probe retrieval subproblem with fixed object
                 # forward operator
-                fprb = self.fwd_ptycho(psi, scan, probe)
+                fprb = self.fwd(psi, scan, probe)
                 # take gradient
                 if model == 'gaussian':
-                    gradprb = self.adj_ptycho_prb(
+                    gradprb = self.adj_probe(
                         fprb - cp.sqrt(data) * cp.exp(1j * cp.angle(fprb)),
                         scan,
                         psi,
                     ) / cp.max(cp.abs(psi))**2 / self.nscan
                 elif model == 'poisson':
-                    gradprb = self.adj_ptycho_prb(
+                    gradprb = self.adj_probe(
                         fprb - data * fprb / (cp.abs(fprb)**2 + 1e-32),
                         scan,
                         psi,
@@ -281,14 +281,14 @@ class CGPtychoSolver(PtychoCuFFT):
                         (cp.sum(cp.conj(dprb) * (gradprb - gradprb0))) * dprb)
                 gradprb0 = gradprb
                 # line search
-                fdprb = self.fwd_ptycho(psi, scan, dprb)
+                fdprb = self.fwd(psi, scan, dprb)
                 gammaprb = self.line_search(minf, fprb, fdprb)
                 # update probe
                 probe = probe + gammaprb * dprb
 
             # check convergence
             if (np.mod(i, 8) == 0):
-                fpsi = self.fwd_ptycho(psi, scan, probe)
+                fpsi = self.fwd(psi, scan, probe)
                 print("%4d, %.3e, %.3e, %.7e" %
                       (i, gammapsi, gammaprb, minf(fpsi)))
 
