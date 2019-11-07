@@ -5,8 +5,8 @@
 // with respect to indices for threads in the f, g, and prb matricies. Skip computations
 // if probe position is negative.
 
-void __global__ muloperator(float2 *f, float2 *g, float2 *prb, 
-  const float * const scanx, const float * const scany,
+void __global__ muloperator(float2 *f, float2 *g, float2 *prb,
+  const float2 * const scan,
   const int Ntheta, const int Nz, const int N, const int Nscan, const int Nprb,
   const int Ndetx, const int Ndety, int flg)
 {
@@ -20,10 +20,10 @@ void __global__ muloperator(float2 *f, float2 *g, float2 *prb,
   const int iy = tx / Nprb;
 
   float sx;  // modf requires a place to save the integer part
-  float sy;  
-  float sxf = modff(scanx[ty + tz * Nscan],&sx);
-  float syf = modff(scany[ty + tz * Nscan],&sy); 
-  
+  float sy;
+  float sxf = modff(scan[ty + tz * Nscan].x, &sx);
+  float syf = modff(scan[ty + tz * Nscan].y, &sy);
+
   // skip scans where the probe position is negative (undefined)
   if (sx < 0 || sy < 0) return;
 

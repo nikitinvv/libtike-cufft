@@ -10,8 +10,7 @@ class ptychofft
 	float2 *f;		// object
 	float2 *g;		// data
 	float2 *prb;	// probe function
-	float *scanx;   // x scan positions
-	float *scany;   // y scan positions
+	float2 *scan;   // x,y scan positions
   // Negative scan positions are skipped in kernel executions.
 	
 	cufftHandle plan2d;		 // 2D FFT plan

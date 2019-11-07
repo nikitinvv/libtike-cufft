@@ -28,15 +28,15 @@ if __name__ == "__main__":
     prb0[0] = prbamp*np.exp(1j*prbang)
 
     # read scan positions
-    scan = np.ones([2, ntheta, nscan], dtype='float32')
-    scan[:, 0] = np.load('model/coords.npy')[:, :nscan].astype('float32')
-    
+    scan = np.ones([ntheta, nscan, 2], dtype='float32')
+    scan[0] = np.moveaxis(np.load('model/coords.npy'), 0, 1)[:nscan]
+
     # read object
     psi0 = np.ones([ntheta, nz, n], dtype='complex64')
     psiamp = dxchange.read_tiff('model/initpsiamp.tiff').astype('float32')
     psiang = dxchange.read_tiff('model/initpsiang.tiff').astype('float32')
     psi0[0] = psiamp*np.exp(1j*psiang)
-    
+
     # Class gpu solver
     with pt.CGPtychoSolver(nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta, igpu) as slv:
         # Compute forward operator FQpsi

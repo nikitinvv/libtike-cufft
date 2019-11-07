@@ -54,12 +54,11 @@ void ptychofft::fwd(size_t g_, size_t f_, size_t scan_, size_t prb_)
   // convert pointers to correct type
   f = (float2 *)f_;
   g = (float2 *)g_;
-  scanx = &((float *)scan_)[0];
-  scany = &((float *)scan_)[ptheta * nscan];
+  scan = (float2 *)scan_;
   prb = (float2 *)prb_;
 
 	// probe multiplication of the object array
-	muloperator<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety, 2); //flg==2 forward transform
+	muloperator<<<GS3d0, BS3d>>>(f, g, prb, scan, ptheta, nz, n, nscan, nprb, ndetx, ndety, 2); //flg==2 forward transform
 	// Fourier transform
 	cufftExecC2C(plan2d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_FORWARD);
 }
@@ -70,12 +69,11 @@ void ptychofft::adj(size_t f_, size_t g_, size_t scan_, size_t prb_, int flg)
   // convert pointers to correct type
   f = (float2 *)f_;
   g = (float2 *)g_;
-  scanx = &((float *)scan_)[0];
-  scany = &((float *)scan_)[ptheta * nscan];
+  scan = (float2 *)scan_;
   prb = (float2 *)prb_;
 
 	// inverse Fourier transform
-	cufftExecC2C(plan2d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_INVERSE);	
+	cufftExecC2C(plan2d, (cufftComplex *)g, (cufftComplex *)g, CUFFT_INVERSE);
 	// adjoint probe (flg==0) or object (flg=1) multiplication operator
-	muloperator<<<GS3d0, BS3d>>>(f, g, prb, scanx, scany, ptheta, nz, n, nscan, nprb, ndetx, ndety, flg);	
+	muloperator<<<GS3d0, BS3d>>>(f, g, prb, scan, ptheta, nz, n, nscan, nprb, ndetx, ndety, flg);
 }

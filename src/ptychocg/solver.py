@@ -93,7 +93,7 @@ class PtychoCuFFT(ptychofft):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
             # copy to GPU
             psi_gpu = cp.array(psi[ids])
-            scan_gpu = cp.array(scan[:, ids])
+            scan_gpu = cp.array(scan[ids])
             prb_gpu = cp.array(prb[ids])
             # compute part on GPU
             data_gpu = self.fwd_ptycho(psi_gpu, scan_gpu, prb_gpu)
@@ -122,7 +122,7 @@ class PtychoCuFFT(ptychofft):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
             # copy to GPU
             data_gpu = cp.array(data[ids])
-            scan_gpu = cp.array(scan[:, ids])
+            scan_gpu = cp.array(scan[ids])
             prb_gpu = cp.array(prb[ids])
             # compute part on GPU
             psi_gpu = self.adj_ptycho(data_gpu, scan_gpu, prb_gpu)
@@ -151,7 +151,7 @@ class PtychoCuFFT(ptychofft):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
             # copy to GPU
             data_gpu = cp.array(data[ids])
-            scan_gpu = cp.array(scan[:, ids])
+            scan_gpu = cp.array(scan[ids])
             psi_gpu = cp.array(psi[ids])
             # compute part on GPU
             prb_gpu = self.adj_ptycho_prb(data_gpu, scan_gpu, psi_gpu)
@@ -175,7 +175,7 @@ class PtychoCuFFT(ptychofft):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
             # copy to GPU
             psi_gpu = cp.array(psi[ids])
-            scan_gpu = cp.array(scan[:, ids])
+            scan_gpu = cp.array(scan[ids])
             prb_gpu = cp.array(prb[ids])
             data_gpu = cp.array(data[ids])
             # solve cg ptychography problem for the part

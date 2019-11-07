@@ -32,8 +32,8 @@ if __name__ == "__main__":
     prb0[0] = prbamp*np.exp(1j*prbang)
 
     # read scan positions
-    scan = np.ones([2, ntheta, nscan], dtype='float32')
-    scan[:, 0] = np.load('model/coords.npy')[:, :nscan].astype('float32')
+    scan = np.ones([ntheta, nscan, 2], dtype='float32')
+    scan[0] = np.moveaxis(np.load('model/coords.npy'), 0, 1)[:nscan]
 
     # read object
     psi0 = np.ones([ntheta, nz, n], dtype='complex64')
