@@ -53,6 +53,8 @@ class PtychoCuFFT(ptychofft):
         simultaneously.
     """
 
+    array_module = cp
+
     def __init__(self, nscan, probe_shape, detector_shape, ntheta, nz, n):
         """Please see help(PtychoCuFFT) for more info."""
         super().__init__(ntheta, nz, n, nscan, detector_shape, probe_shape)
@@ -65,12 +67,13 @@ class PtychoCuFFT(ptychofft):
         """Free GPU memory due at interruptions or with-block exit."""
         self.free()
 
-    @staticmethod
-    def _batch(function, output, *inputs):
+    @classmethod
+    def _batch(self, function, output, *inputs):
         """Does data shuffle between host and device."""
+        xp = self.array_module
         # TODO: handle the case when ptheta does not divide ntheta evenly
         for ids in range(0, inputs[0].shape[0]):
-            inputs_gpu = [cp.array(x[ids]) for x in inputs]
+            inputs_gpu = [xp.array(x[ids]) for x in inputs]
             output[ids] = function(*inputs_gpu).get()
         return output
 
