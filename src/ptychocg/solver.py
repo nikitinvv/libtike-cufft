@@ -73,7 +73,7 @@ class PtychoCuFFT(ptychofft):
         xp = self.array_module
         # TODO: handle the case when ptheta does not divide ntheta evenly
         for ids in range(0, inputs[0].shape[0]):
-            inputs_gpu = [xp.array(x[ids]) for x in inputs]
+            inputs_gpu = [xp.array(x[ids:ids+1]) for x in inputs]
             output[ids] = function(*inputs_gpu).get()
         return output
 
