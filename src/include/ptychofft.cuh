@@ -14,6 +14,7 @@ class ptychofft
   // Negative scan positions are skipped in kernel executions.
 
 	cufftHandle plan2d;		 // 2D FFT plan
+  float2 *fft_out;       // Buffer to store FFT output
 
 	dim3 BS3d; // 3d thread block on GPU
 
