@@ -41,7 +41,7 @@ if __name__ == "__main__":
     psi0[0] = psiamp*np.exp(1j*psiang)
 
     # Class gpu solver
-    with pt.CGPtychoSolver(nscan, nprb, ndet, ptheta, nz, n, igpu) as slv:
+    with pt.CGPtychoSolver(nscan, nprb, ndet, ptheta, nz, n) as slv:
         # Compute intensity data on the detector |FQ|**2
         data = np.abs(slv.fwd_ptycho_batch(psi0, scan, prb0))**2
         dxchange.write_tiff(data, 'data', overwrite=True)
@@ -55,7 +55,7 @@ if __name__ == "__main__":
             prb = prb0.copy()
         result = slv.run_batch(
             data, psi, scan, prb, piter=piter, model=model, recover_prb=recover_prb)
-        psi, prb = result['psi'], result['prb']
+        psi, prb = result['psi'], result['probe']
 
     # Save result
     name = str(model)+str(piter)
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     plt.figure(figsize=(11, 7))
     plt.subplot(2, 2, 1)
     plt.title('scan positions')
-    plt.plot(scan[0, 0, :], scan[1, 0, :],
+    plt.plot(scan[0, :, 0], scan[0, :, 1],
              '.', markersize=1.5, color='blue')
     plt.xlim([0, n])
     plt.ylim([0, nz])
