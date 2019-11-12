@@ -54,6 +54,7 @@ class PtychoCuFFT(ptychofft):
     """
 
     array_module = cp
+    asnumpy = cp.asnumpy
 
     def __init__(self, nscan, probe_shape, detector_shape, ntheta, nz, n):
         """Please see help(PtychoCuFFT) for more info."""
