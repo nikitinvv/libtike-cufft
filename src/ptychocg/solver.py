@@ -82,10 +82,10 @@ class PtychoCuFFT(ptychofft):
         assert psi.dtype == cp.complex64, f"{psi.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert probe.dtype == cp.complex64, f"{probe.dtype}"
-        res = cp.zeros([self.ptheta, self.nscan, self.ndet, self.ndet],
+        farplane = cp.zeros([self.ptheta, self.nscan, self.ndet, self.ndet],
                        dtype='complex64')
-        super().fwd(res.data.ptr, psi.data.ptr, scan.data.ptr, probe.data.ptr)
-        return res
+        ptychofft.fwd(self, farplane.data.ptr, psi.data.ptr, scan.data.ptr, probe.data.ptr)
+        return farplane
 
     def fwd_ptycho_batch(self, psi, scan, probe):
         """Batch of Ptychography transform (FQ)."""
@@ -98,10 +98,10 @@ class PtychoCuFFT(ptychofft):
         assert farplane.dtype == cp.complex64, f"{farplane.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert probe.dtype == cp.complex64, f"{probe.dtype}"
-        res = cp.zeros([self.ptheta, self.nz, self.n], dtype='complex64')
+        psi = cp.zeros([self.ptheta, self.nz, self.n], dtype='complex64')
         flg = 0  # compute adjoint operator with respect to object
-        super().adj(res.data.ptr, farplane.data.ptr, scan.data.ptr, probe.data.ptr, flg)
-        return res
+        ptychofft.adj(self, psi.data.ptr, farplane.data.ptr, scan.data.ptr, probe.data.ptr, flg)
+        return psi
 
     def adj_ptycho_batch(self, farplane, scan, probe):
         """Batch of Ptychography transform (FQ)."""
@@ -113,10 +113,10 @@ class PtychoCuFFT(ptychofft):
         assert farplane.dtype == cp.complex64, f"{farplane.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert psi.dtype == cp.complex64, f"{psi.dtype}"
-        res = cp.zeros([self.ptheta, self.nprb, self.nprb], dtype='complex64')
+        probe = cp.zeros([self.ptheta, self.nprb, self.nprb], dtype='complex64')
         flg = 1  # compute adjoint operator with respect to probe
-        super().adj(psi.data.ptr, farplane.data.ptr, scan.data.ptr, res.data.ptr, flg)
-        return res
+        ptychofft.adj(self, psi.data.ptr, farplane.data.ptr, scan.data.ptr, probe.data.ptr, flg)
+        return probe
 
     def adj_ptycho_batch_prb(self, farplane, scan, psi):
         """Batch of Ptychography transform (FQ)."""
