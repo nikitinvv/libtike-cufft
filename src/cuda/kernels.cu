@@ -21,8 +21,8 @@ void __global__ muloperator(float2 *f, float2 *g, float2 *prb,
 
   float sx;  // modf requires a place to save the integer part
   float sy;
-  float sxf = modff(scan[ty + tz * Nscan].x, &sx);
-  float syf = modff(scan[ty + tz * Nscan].y, &sy);
+  float sxf = modff(scan[ty + tz * Nscan].y, &sx);
+  float syf = modff(scan[ty + tz * Nscan].x, &sy);
 
   // skip scans where the probe position is negative (undefined)
   if (sx < 0 || sy < 0) return;

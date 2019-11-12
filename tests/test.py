@@ -32,7 +32,9 @@ if __name__ == "__main__":
 
     # read scan positions
     scan = np.ones([ntheta, nscan, 2], dtype='float32')
-    scan[0] = np.moveaxis(np.load('model/coords.npy'), 0, 1)[:nscan]
+    temp = np.moveaxis(np.load('model/coords.npy'), 0, 1)[:nscan]
+    scan[0, :, 0] = temp[:, 1]
+    scan[0, :, 1] = temp[:, 0]
 
     # read object
     psi0 = np.ones([ntheta, nz, n], dtype='complex64')
