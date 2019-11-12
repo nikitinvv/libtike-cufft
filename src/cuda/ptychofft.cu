@@ -66,6 +66,7 @@ void ptychofft::fwd(size_t g_, size_t f_, size_t scan_, size_t prb_)
   prb = (float2 *)prb_;
 
 	// probe multiplication of the object array
+  cudaMemset(fft_out, 0, ptheta * nscan * ndet * ndet * sizeof(float2));
 	muloperator<<<GS3d0, BS3d>>>(f, fft_out, prb, scan, ptheta, nz, n, nscan, nprb, ndet, 2); //flg==2 forward transform
 	// Fourier transform
 	cufftExecC2C(plan2d, (cufftComplex *)fft_out, (cufftComplex *)g, CUFFT_FORWARD);
