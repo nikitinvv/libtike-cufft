@@ -24,5 +24,5 @@ swig_add_library(ptychofft LANGUAGE python SOURCES ptychofft.i ptychofft.cu)
 swig_link_libraries(ptychofft cudart cufft)
 target_compile_features(ptychofft PUBLIC cxx_std_11)
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ptychofft.py" DESTINATION ptychocg)
-install(TARGETS ptychofft LIBRARY DESTINATION ptychocg)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ptychofft.py" DESTINATION "libtike/cufft")
+install(TARGETS ptychofft LIBRARY DESTINATION "libtike/cufft")

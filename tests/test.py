@@ -1,9 +1,11 @@
-import numpy as np
-import cupy as cp
-import dxchange
-from scipy import ndimage
 import sys
-import ptychocg as pt
+
+import dxchange
+import cupy as cp
+import numpy as np
+from scipy import ndimage
+
+import libtike.cufft as pt
 
 if __name__ == "__main__":
 
