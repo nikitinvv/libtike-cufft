@@ -1,16 +1,14 @@
 // This module defines CUDA kernels for ptychography.
 
-// The main function is compute_indices which computes calculates the index that
-// each thread needs to do its work on the f, g, and prb arrays for the various
-// kernels defined here.
+// The main function is muloperator which computes multiplication by the probe function
+// or object function so as their adjoints. The operation is performed 
+// with respect to indices for threads in the f, g, and prb matricies. Skip computations
+// if probe position is negative.
 
-// Compute the array index for a thread in the f, g, and prb matricies. Returns
-// nonzero if probe position is negative.
-int __device__ compute_indices(
-  size_t* const f_index, size_t* const g_index, size_t* const prb_index,
+void __global__ muloperator(float2 *f, float2 *g, float2 *prb, 
   const float * const scanx, const float * const scany,
   const int Ntheta, const int Nz, const int N, const int Nscan, const int Nprb,
-  const int Ndetx, const int Ndety)
+  const int Ndetx, const int Ndety, int flg)
 {
   const int tx = blockDim.x * blockIdx.x + threadIdx.x;
   const int ty = blockDim.y * blockIdx.y + threadIdx.y;
@@ -21,26 +19,22 @@ int __device__ compute_indices(
   const int ix = tx % Nprb;
   const int iy = tx / Nprb;
 
-  // closest integers for scan positions
-  const int stx = roundf(scanx[ty + tz * Nscan]);
-  const int sty = roundf(scany[ty + tz * Nscan]);
+  float sx;  // modf requires a place to save the integer part
+  float sy;  
+  float sxf = modff(scanx[ty + tz * Nscan],&sx);
+  float syf = modff(scany[ty + tz * Nscan],&sy); 
+  
   // skip scans where the probe position is negative (undefined)
-  if (stx < 0 || sty < 0) return 1;
+  if (sx < 0 || sy < 0) return;
 
-  if (f_index != NULL)
-  {
-    // coordinates in the f array
-    *f_index = (
-      + (stx + ix)
-      + (sty + iy) * N
+  // coordinates in the f array
+  int f_index = (
+      + (sx + ix)
+      + (sy + iy) * N
       + tz * Nz * N
-    );
-  }
-
-  if (g_index != NULL)
-  {
-    // coordinates in the g array
-    *g_index = (
+    );  
+  // coordinates in the g array
+  int g_index = (
       // shift in the object array to the starting point of probe multiplication
       + (Ndety - Nprb) / 2 * Ndetx
       + (Ndetx - Nprb) / 2
@@ -49,133 +43,55 @@ int __device__ compute_indices(
       + iy * Ndetx
       + ty * Ndetx * Ndety
       + tz * Ndetx * Ndety * Nscan
-    );
-  }
-
-  if (prb_index != NULL)
-  {
-    // coordinates in the probe array
-    *prb_index = (
+    );  
+  // coordinates in the probe array
+  int prb_index = (
       + ix
       + iy * Nprb
       + tz * Nprb * Nprb
     );
-  }
-
-  return 0;
-}
-
-// Multiply the probe array (prb) by the patches (g) extracted from the object.
-void __global__ mulprobe(
-  float2 *f, float2 *g, float2 *prb,
-  float *scanx, float *scany,
-  int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
-{
-  size_t g_index = 0, prb_index = 0;
-  if (compute_indices(
-        NULL, &g_index, &prb_index,
-        scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
-  ){
-    return;
-  }
-  float2 g0 = g[g_index];
-  float2 prb0 = prb[prb_index];
-  // multiplication in complex variables
+  
   const float c = 1 / sqrtf(Ndetx * Ndety); // fft constant
-  g[g_index].x = c * (prb0.x * g0.x - prb0.y * g0.y);
-  g[g_index].y = c * (prb0.x * g0.y + prb0.y * g0.x);
-}
+  float2 tmp; //tmp variable
 
-// Multiply the object patches (g) by the complex conjugate of the probe (prb).
-void __global__ mulaprobe(
-  float2 *f, float2 *g, float2 *prb,
-  float *scanx, float *scany,
-  int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
-{
-  size_t g_index = 0, prb_index = 0;
-  if (compute_indices(
-    NULL, &g_index, &prb_index,
-    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
-  ){
-    return;
+  // Linear interpolation   
+  if(flg==0) //adjoint
+  {
+    tmp.x = c * (prb[prb_index].x * g[g_index].x + prb[prb_index].y * g[g_index].y);
+    tmp.y = c * (prb[prb_index].x * g[g_index].y - prb[prb_index].y * g[g_index].x);
+    atomicAdd(&f[f_index].x,     tmp.x*(1-sxf)*(1-syf));
+    atomicAdd(&f[f_index].y,     tmp.y*(1-sxf)*(1-syf));
+    atomicAdd(&f[f_index+1].x,   tmp.x*(sxf  )*(1-syf));
+    atomicAdd(&f[f_index+1].y,   tmp.y*(sxf  )*(1-syf));
+    atomicAdd(&f[f_index+N].x,   tmp.x*(1-sxf)*(syf  ));
+    atomicAdd(&f[f_index+N].y,   tmp.y*(1-sxf)*(syf  ));
+    atomicAdd(&f[f_index+1+N].x, tmp.x*(sxf  )*(syf  ));
+    atomicAdd(&f[f_index+1+N].y, tmp.y*(sxf  )*(syf  ));
+  }  
+  else if(flg==1) //adjoint probe
+  {
+    tmp.x = f[f_index].x   *(1-sxf)*(1-syf)+
+           f[f_index+1].x  *(sxf  )*(1-syf)+
+           f[f_index+N].x  *(1-sxf)*(syf  )+
+           f[f_index+1+N].x*(sxf  )*(syf  );
+    tmp.y = f[f_index].y  *(1-sxf)*(1-syf)+
+           f[f_index+1].y  *(sxf  )*(1-syf)+
+           f[f_index+N].y  *(1-sxf)*(syf  )+
+           f[f_index+1+N].y*(sxf  )*(syf  );
+           atomicAdd(&prb[prb_index].x, c * (g[g_index].x * tmp.x + g[g_index].y * tmp.y));
+           atomicAdd(&prb[prb_index].y, c * (g[g_index].y * tmp.x - g[g_index].x * tmp.y));  
+  }  
+  else if (flg==2) //forward
+  {
+    tmp.x = f[f_index].x   *(1-sxf)*(1-syf)+
+           f[f_index+1].x  *(sxf  )*(1-syf)+
+           f[f_index+N].x  *(1-sxf)*(syf  )+
+           f[f_index+1+N].x*(sxf  )*(syf  );
+    tmp.y = f[f_index].y  *(1-sxf)*(1-syf)+
+           f[f_index+1].y  *(sxf  )*(1-syf)+
+           f[f_index+N].y  *(1-sxf)*(syf  )+
+           f[f_index+1+N].y*(sxf  )*(syf  );
+    g[g_index].x = c * (prb[prb_index].x * tmp.x - prb[prb_index].y * tmp.y);
+    g[g_index].y = c * (prb[prb_index].x * tmp.y + prb[prb_index].y * tmp.x);  
   }
-  float2 g0 = g[g_index];
-  float2 prb0 = prb[prb_index];
-  // multiplication in complex variables
-  const float c = 1 / sqrtf(Ndetx * Ndety); // fft constant
-  g[g_index].x = c * (prb0.x * g0.x + prb0.y * g0.y);
-  g[g_index].y = c * (prb0.x * g0.y - prb0.y * g0.x);
-}
-
-// Multiply the object patches (g) by the complex conjugate of the object (f).
-void __global__ mulaobj(
-  float2 *f, float2 *g, float2 *prb,
-  float *scanx, float *scany,
-  int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
-{
-  size_t f_index = 0, g_index = 0;
-  if (compute_indices(
-    &f_index, &g_index, NULL,
-    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
-  ){
-    return;
-  }
-  float2 f0 = f[f_index];
-  float2 g0 = g[g_index];
-  // multiplication in complex variables
-  const float c = 1 / sqrtf(Ndetx * Ndety); // fft constant
-  g[g_index].x = c * (f0.x * g0.x + f0.y * g0.y);
-  g[g_index].y = c * (f0.x * g0.y - f0.y * g0.x);
-}
-
-// Take patches of the object array (f) where the probe illuminates and put them
-// into the far-field array (g).
-void __global__ takepart(
-  float2 *f, float2 *g, float2 *prb,
-  float *scanx, float *scany,
-  int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
-{
-  size_t f_index = 0, g_index = 0;
-  if (compute_indices(
-    &f_index, &g_index, NULL,
-    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
-  ){
-    return;
-  }
-  g[g_index].x = f[f_index].x;
-  g[g_index].y = f[f_index].y;
-}
-
-// Add the object patches (g) to the object array (f).
-void __global__ setpartobj(
-  float2 *f, float2 *g, float2 *prb,
-  float *scanx, float *scany,
-  int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
-{
-  size_t f_index = 0, g_index = 0;
-  if (compute_indices(
-    &f_index, &g_index, NULL,
-    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
-  ){
-    return;
-  }
-  atomicAdd(&f[f_index].x, g[g_index].x);
-  atomicAdd(&f[f_index].y, g[g_index].y);
-}
-
-// Add the object patches (g) to the probe array (prb).
-void __global__ setpartprobe(
-  float2 *f, float2 *g, float2 *prb,
-  float *scanx, float *scany,
-	int Ntheta, int Nz, int N, int Nscan, int Nprb, int Ndetx, int Ndety)
-{
-  size_t g_index = 0, prb_index = 0;
-  if (compute_indices(
-    NULL, &g_index, &prb_index,
-    scanx, scany, Ntheta, Nz, N, Nscan, Nprb, Ndetx, Ndety)
-  ){
-    return;
-  }
-  atomicAdd(&prb[prb_index].x, g[g_index].x);
-  atomicAdd(&prb[prb_index].y, g[g_index].y);
 }

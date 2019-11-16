@@ -53,8 +53,13 @@ class PtychoCuFFT(ptychofft):
         simultaneously.
     """
 
-    def __init__(self, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta):
+    def __init__(self, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta, igpu):
         """Please see help(PtychoCuFFT) for more info."""
+        cp.cuda.Device(igpu).use()  # gpu id to use
+        # set cupy to use unified memory
+        pool = cp.cuda.MemoryPool(cp.cuda.malloc_managed)
+        cp.cuda.set_allocator(pool.malloc)
+
         super().__init__(ptheta, nz, n, nscan, ndetx, ndety, nprb)
         self.ntheta = ntheta  # number of projections
 
@@ -78,18 +83,22 @@ class PtychoCuFFT(ptychofft):
 
     def fwd_ptycho_batch(self, psi, scan, prb):
         """Batch of Ptychography transform (FQ)."""
-        assert psi.dtype == cp.complex64, f"{psi.dtype}"
-        assert scan.dtype == cp.float32, f"{scan.dtype}"
-        assert prb.dtype == cp.complex64, f"{prb.dtype}"
-        data = np.zeros([self.ntheta, self.nscan, self.ndety, self.ndetx],
-                        dtype='float32')
+        assert psi.dtype == np.complex64, f"{psi.dtype}"
+        assert scan.dtype == np.float32, f"{scan.dtype}"
+        assert prb.dtype == np.complex64, f"{prb.dtype}"
+        data = np.zeros([self.ntheta, self.nscan, self.ndety,
+                         self.ndetx], dtype='complex64')
         # angle partitions in ptychography
         for k in range(0, self.ntheta // self.ptheta):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
+            # copy to GPU
+            psi_gpu = cp.array(psi[ids])
+            scan_gpu = cp.array(scan[:, ids])
+            prb_gpu = cp.array(prb[ids])
             # compute part on GPU
-            data0 = cp.abs(self.fwd_ptycho(psi[ids], scan[:, ids],
-                                           prb[ids]))**2
-            data[ids] = data0.get()  # copy to CPU
+            data_gpu = self.fwd_ptycho(psi_gpu, scan_gpu, prb_gpu)
+            # copy to CPU
+            data[ids] = data_gpu.get()            
         return data
 
     def adj_ptycho(self, data, scan, prb):
@@ -102,6 +111,25 @@ class PtychoCuFFT(ptychofft):
         self.adj(res.data.ptr, data.data.ptr, scan.data.ptr, prb.data.ptr, flg)
         return res
 
+    def adj_ptycho_batch(self, data, scan, prb):
+        """Batch of Ptychography transform (FQ)."""
+        assert data.dtype == np.complex64, f"{data.dtype}"
+        assert scan.dtype == np.float32, f"{scan.dtype}"
+        assert prb.dtype == np.complex64, f"{prb.dtype}"
+        psi = np.zeros([self.ntheta, self.nz, self.n], dtype='complex64')
+        # angle partitions in ptychography
+        for k in range(0, self.ntheta // self.ptheta):
+            ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
+            # copy to GPU
+            data_gpu = cp.array(data[ids])
+            scan_gpu = cp.array(scan[:, ids])
+            prb_gpu = cp.array(prb[ids])
+            # compute part on GPU
+            psi_gpu = self.adj_ptycho(data_gpu, scan_gpu, prb_gpu)
+            # copy to CPU
+            psi[ids] = psi_gpu.get()
+        return psi
+
     def adj_ptycho_prb(self, data, scan, psi):
         """Adjoint ptychography probe transform (O*F*), object is fixed."""
         assert data.dtype == cp.complex64, f"{data.dtype}"
@@ -111,6 +139,25 @@ class PtychoCuFFT(ptychofft):
         flg = 1  # compute adjoint operator with respect to probe
         self.adj(psi.data.ptr, data.data.ptr, scan.data.ptr, res.data.ptr, flg)
         return res
+
+    def adj_ptycho_batch_prb(self, data, scan, psi):
+        """Batch of Ptychography transform (FQ)."""
+        assert data.dtype == np.complex64, f"{data.dtype}"
+        assert scan.dtype == np.float32, f"{scan.dtype}"
+        assert psi.dtype == np.complex64, f"{psi.dtype}"
+        prb = np.zeros([self.ntheta, self.nprb, self.nprb], dtype='complex64')
+        # angle partitions in ptychography
+        for k in range(0, self.ntheta // self.ptheta):
+            ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
+            # copy to GPU
+            data_gpu = cp.array(data[ids])
+            scan_gpu = cp.array(scan[:, ids])
+            psi_gpu = cp.array(psi[ids])
+            # compute part on GPU
+            prb_gpu = self.adj_ptycho_prb(data_gpu, scan_gpu, psi_gpu)
+            # copy to CPU
+            prb[ids] = prb_gpu.get()
+        return prb
 
     def run(self, data, psi, scan, prb, **kwargs):
         """Placehold for a child's solving function."""
@@ -126,16 +173,20 @@ class PtychoCuFFT(ptychofft):
         # angle partitions in ptychography
         for k in range(0, self.ntheta // self.ptheta):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
-            datap = cp.array(data[ids])  # copy a part of data to GPU
+            # copy to GPU
+            psi_gpu = cp.array(psi[ids])
+            scan_gpu = cp.array(scan[:, ids])
+            prb_gpu = cp.array(prb[ids])
+            data_gpu = cp.array(data[ids])
             # solve cg ptychography problem for the part
             result = self.run(
-                datap,
-                psi[ids],
-                scan[:, ids],
-                prb[ids, :, :],
+                data_gpu,
+                psi_gpu,
+                scan_gpu,
+                prb_gpu,
                 **kwargs,
             )
-            psi[ids], prb[ids] = result['psi'], result['prb']
+            psi[ids], prb[ids] = result['psi'].get(), result['prb'].get()
         return {
             'psi': psi,
             'prb': prb,

@@ -21,12 +21,9 @@ class ptychofft
 	float2 *prb;	// probe function
 	float *scanx;   // x scan positions
 	float *scany;   // y scan positions
-	float2 *shiftx; // x shift (-1,1) of scan positions to nearest integer
-	float2 *shifty; // y shift (-1,1) of scan positions to nearest integer
-
+	
 	cufftHandle plan2d; // 2D FFT plan
-	cufftHandle plan2dshift; // 2D FFT plan for the shift in the frequency domain
-
+	
 	dim3 BS3d; // 3d thread block on GPU
 
 	// 3d thread grids on GPU for different kernels
