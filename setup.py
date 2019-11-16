@@ -1,6 +1,6 @@
-"""This is the main entry point for building ptychocg.
+"""This is the main entry point for building libtike-cufft.
 
-The setup process for ptychocg is very much like any python module except
+The setup process for libtike-cufft is very much like any python module except
 that the compilation of the the extension module(s) is driven by CMake through
 scikit-build. Scikit-build defines a custom Extension class which calls CMake
 and provides some common (for Python) CMake package finders.
@@ -15,13 +15,13 @@ For skbuild >= 0.10.0, the two dashes will not be required. See the top-level
 CMakeLists.txt for the curent list of build options.
 """
 from skbuild import setup
-from setuptools import find_packages
+from setuptools import find_namespace_packages
 
 setup(
-    name='ptychocg',
+    name='libtike-cufft',
     author='Viktor Nikitin',
-    version='0.5.0',
-    package_dir={"": "src"},
-    packages=find_packages('src'),
+    version='0.4.0',
+    package_dir={'': 'src'},
+    packages=find_namespace_packages(where='src', include=['libtike.*']),
     zip_safe=False,
 )
