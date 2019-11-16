@@ -2,7 +2,7 @@ import numpy as np
 import dxchange
 from scipy import ndimage
 import sys
-import ptychocg as pt
+import libtike.cufft as pt
 
 if __name__ == "__main__":
 
