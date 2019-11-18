@@ -13,5 +13,5 @@ set_source_files_properties(ptychofft.i PROPERTIES CPLUSPLUS ON)
 swig_add_library(ptychofft LANGUAGE python SOURCES ptychofft.i)
 target_link_libraries(ptychofft PRIVATE libptychofft)
 
-install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ptychofft.py" DESTINATION ptychocg)
-install(TARGETS ptychofft LIBRARY DESTINATION ptychocg)
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/ptychofft.py" DESTINATION "libtike/cufft")
+install(TARGETS ptychofft LIBRARY DESTINATION "libtike/cufft")

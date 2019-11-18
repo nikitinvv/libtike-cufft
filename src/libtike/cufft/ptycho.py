@@ -21,12 +21,14 @@ Context managers are capable of gracefully handling interruptions (CTRL+C).
 
 """
 
-import warnings
-import numpy as np
-import cupy as cp
-import sys
 import signal
-from ptychocg.ptychofft import ptychofft
+import sys
+import warnings
+
+import cupy as cp
+import numpy as np
+
+from libtike.cufft.ptychofft import ptychofft
 
 
 class PtychoCuFFT(ptychofft):

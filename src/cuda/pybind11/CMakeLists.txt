@@ -12,4 +12,4 @@ set_target_properties(ptychofft PROPERTIES
 target_link_libraries(ptychofft PRIVATE libptychofft)
 target_link_libraries(ptychofft PRIVATE pybind11::module)
 
-install(TARGETS ptychofft LIBRARY DESTINATION ptychocg)
+install(TARGETS ptychofft LIBRARY DESTINATION "libtike/cufft")
