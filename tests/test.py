@@ -13,15 +13,14 @@ if __name__ == "__main__":
         igpu = 0
     else:
         igpu = np.int(sys.argv[1])
-  
+
     # sizes
     n = 600  # horizontal size
     nz = 276  # vertical size
     ntheta = 1  # number of projections
     nscan = 1000  # number of scan positions [max 5706 for the data example]
     nprb = 128  # probe size
-    ndetx = 128  # detector x size
-    ndety = 128  # detector y size
+    ndet = 128  # detector x size
     recover_prb = True  # True: recover probe, False: use the initial one
     # Reconstrucion parameters
     model = 'gaussian'  # minimization funcitonal (poisson,gaussian)
@@ -35,8 +34,10 @@ if __name__ == "__main__":
     prb0[0] = prbamp*np.exp(1j*prbang)
 
     # read scan positions
-    scan = np.ones([2, ntheta, nscan], dtype='float32')
-    scan[:, 0] = np.load('model/coords.npy')[:, :nscan].astype('float32')
+    scan = np.ones([ntheta, nscan, 2], dtype='float32')
+    temp = np.moveaxis(np.load('model/coords.npy'), 0, 1)[:nscan]
+    scan[0, :, 0] = temp[:, 1]
+    scan[0, :, 1] = temp[:, 0]
 
     # read object
     psi0 = np.ones([ntheta, nz, n], dtype='complex64')
@@ -45,7 +46,7 @@ if __name__ == "__main__":
     psi0[0] = psiamp*np.exp(1j*psiang)
 
     # Class gpu solver
-    with pt.CGPtychoSolver(nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta, igpu) as slv:
+    with pt.CGPtychoSolver(nscan, nprb, ndet, ptheta, nz, n) as slv:
         # Compute intensity data on the detector |FQ|**2
         data = np.abs(slv.fwd_ptycho_batch(psi0, scan, prb0))**2
         dxchange.write_tiff(data, 'data', overwrite=True)
@@ -59,7 +60,7 @@ if __name__ == "__main__":
             prb = prb0.copy()
         result = slv.run_batch(
             data, psi, scan, prb, piter=piter, model=model, recover_prb=recover_prb)
-        psi, prb = result['psi'], result['prb']
+        psi, prb = result['psi'], result['probe']
 
     # Save result
     name = str(model)+str(piter)
@@ -82,7 +83,7 @@ if __name__ == "__main__":
     plt.figure(figsize=(11, 7))
     plt.subplot(2, 2, 1)
     plt.title('scan positions')
-    plt.plot(scan[0, 0, :], scan[1, 0, :],
+    plt.plot(scan[0, :, 0], scan[0, :, 1],
              '.', markersize=1.5, color='blue')
     plt.xlim([0, n])
     plt.ylim([0, nz])

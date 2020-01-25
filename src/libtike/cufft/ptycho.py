@@ -44,9 +44,9 @@ class PtychoCuFFT(ptychofft):
         The number of scan positions at each angular view.
     nprb : int
         The pixel width and height of the probe illumination.
-    ndetx, ndety : int
+    ndet, ndet : int
         The pixel width and height of the detector.
-    ntheta : int
+    ptheta : int
         The number of angular partitions of the data.
     n, nz : int
         The pixel width and height of the reconstructed grid.
@@ -55,15 +55,12 @@ class PtychoCuFFT(ptychofft):
         simultaneously.
     """
 
-    def __init__(self, nscan, nprb, ndetx, ndety, ntheta, nz, n, ptheta, igpu):
-        """Please see help(PtychoCuFFT) for more info."""
-        cp.cuda.Device(igpu).use()  # gpu id to use
-        # set cupy to use unified memory
-        pool = cp.cuda.MemoryPool(cp.cuda.malloc_managed)
-        cp.cuda.set_allocator(pool.malloc)
+    array_module = cp
+    asnumpy = cp.asnumpy
 
-        super().__init__(ptheta, nz, n, nscan, ndetx, ndety, nprb)
-        self.ntheta = ntheta  # number of projections
+    def __init__(self, nscan, probe_shape, detector_shape, ntheta, nz, n):
+        """Please see help(PtychoCuFFT) for more info."""
+        super().__init__(ntheta, nz, n, nscan, detector_shape, probe_shape)
 
     def __enter__(self):
         """Return self at start of a with-block."""
@@ -73,112 +70,80 @@ class PtychoCuFFT(ptychofft):
         """Free GPU memory due at interruptions or with-block exit."""
         self.free()
 
-    def fwd_ptycho(self, psi, scan, prb):
+    @classmethod
+    def _batch(self, function, output, *inputs):
+        """Does data shuffle between host and device."""
+        xp = self.array_module
+        # TODO: handle the case when ptheta does not divide ntheta evenly
+        for ids in range(0, inputs[0].shape[0]):
+            inputs_gpu = [xp.array(x[ids:ids+1]) for x in inputs]
+            output[ids] = function(*inputs_gpu).get()
+        return output
+
+    def fwd(self, psi, scan, probe):
         """Ptychography transform (FQ)."""
         assert psi.dtype == cp.complex64, f"{psi.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
-        assert prb.dtype == cp.complex64, f"{prb.dtype}"
-        res = cp.zeros([self.ptheta, self.nscan, self.ndety, self.ndetx],
+        assert probe.dtype == cp.complex64, f"{probe.dtype}"
+        farplane = cp.zeros([self.ptheta, self.nscan, self.ndet, self.ndet],
                        dtype='complex64')
-        self.fwd(res.data.ptr, psi.data.ptr, scan.data.ptr, prb.data.ptr)
-        return res
+        ptychofft.fwd(self, farplane.data.ptr, psi.data.ptr, scan.data.ptr, probe.data.ptr)
+        return farplane
 
-    def fwd_ptycho_batch(self, psi, scan, prb):
+    def fwd_ptycho_batch(self, psi, scan, probe):
         """Batch of Ptychography transform (FQ)."""
-        assert psi.dtype == np.complex64, f"{psi.dtype}"
-        assert scan.dtype == np.float32, f"{scan.dtype}"
-        assert prb.dtype == np.complex64, f"{prb.dtype}"
-        data = np.zeros([self.ntheta, self.nscan, self.ndety,
-                         self.ndetx], dtype='complex64')
-        # angle partitions in ptychography
-        for k in range(0, self.ntheta // self.ptheta):
-            ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
-            # copy to GPU
-            psi_gpu = cp.array(psi[ids])
-            scan_gpu = cp.array(scan[:, ids])
-            prb_gpu = cp.array(prb[ids])
-            # compute part on GPU
-            data_gpu = self.fwd_ptycho(psi_gpu, scan_gpu, prb_gpu)
-            # copy to CPU
-            data[ids] = data_gpu.get()            
-        return data
+        data = np.zeros([scan.shape[0], self.nscan, self.ndet, self.ndet],
+                        dtype='complex64')
+        return self._batch(self.fwd, data, psi, scan, probe)
 
-    def adj_ptycho(self, data, scan, prb):
+    def adj(self, farplane, scan, probe):
         """Adjoint ptychography transform (Q*F*)."""
-        assert data.dtype == cp.complex64, f"{data.dtype}"
+        assert farplane.dtype == cp.complex64, f"{farplane.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
-        assert prb.dtype == cp.complex64, f"{prb.dtype}"
-        res = cp.zeros([self.ptheta, self.nz, self.n], dtype='complex64')
+        assert probe.dtype == cp.complex64, f"{probe.dtype}"
+        psi = cp.zeros([self.ptheta, self.nz, self.n], dtype='complex64')
         flg = 0  # compute adjoint operator with respect to object
-        self.adj(res.data.ptr, data.data.ptr, scan.data.ptr, prb.data.ptr, flg)
-        return res
-
-    def adj_ptycho_batch(self, data, scan, prb):
-        """Batch of Ptychography transform (FQ)."""
-        assert data.dtype == np.complex64, f"{data.dtype}"
-        assert scan.dtype == np.float32, f"{scan.dtype}"
-        assert prb.dtype == np.complex64, f"{prb.dtype}"
-        psi = np.zeros([self.ntheta, self.nz, self.n], dtype='complex64')
-        # angle partitions in ptychography
-        for k in range(0, self.ntheta // self.ptheta):
-            ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
-            # copy to GPU
-            data_gpu = cp.array(data[ids])
-            scan_gpu = cp.array(scan[:, ids])
-            prb_gpu = cp.array(prb[ids])
-            # compute part on GPU
-            psi_gpu = self.adj_ptycho(data_gpu, scan_gpu, prb_gpu)
-            # copy to CPU
-            psi[ids] = psi_gpu.get()
+        ptychofft.adj(self, psi.data.ptr, farplane.data.ptr, scan.data.ptr, probe.data.ptr, flg)
         return psi
 
-    def adj_ptycho_prb(self, data, scan, psi):
+    def adj_ptycho_batch(self, farplane, scan, probe):
+        """Batch of Ptychography transform (FQ)."""
+        psi = np.zeros([scan.shape[0], self.nz, self.n], dtype='complex64')
+        return self._batch(self.adj, psi, farplane, scan, probe)
+
+    def adj_probe(self, farplane, scan, psi):
         """Adjoint ptychography probe transform (O*F*), object is fixed."""
-        assert data.dtype == cp.complex64, f"{data.dtype}"
+        assert farplane.dtype == cp.complex64, f"{farplane.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert psi.dtype == cp.complex64, f"{psi.dtype}"
-        res = cp.zeros([self.ptheta, self.nprb, self.nprb], dtype='complex64')
+        probe = cp.zeros([self.ptheta, self.nprb, self.nprb], dtype='complex64')
         flg = 1  # compute adjoint operator with respect to probe
-        self.adj(psi.data.ptr, data.data.ptr, scan.data.ptr, res.data.ptr, flg)
-        return res
+        ptychofft.adj(self, psi.data.ptr, farplane.data.ptr, scan.data.ptr, probe.data.ptr, flg)
+        return probe
 
-    def adj_ptycho_batch_prb(self, data, scan, psi):
+    def adj_ptycho_batch_prb(self, farplane, scan, psi):
         """Batch of Ptychography transform (FQ)."""
-        assert data.dtype == np.complex64, f"{data.dtype}"
-        assert scan.dtype == np.float32, f"{scan.dtype}"
-        assert psi.dtype == np.complex64, f"{psi.dtype}"
-        prb = np.zeros([self.ntheta, self.nprb, self.nprb], dtype='complex64')
-        # angle partitions in ptychography
-        for k in range(0, self.ntheta // self.ptheta):
-            ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
-            # copy to GPU
-            data_gpu = cp.array(data[ids])
-            scan_gpu = cp.array(scan[:, ids])
-            psi_gpu = cp.array(psi[ids])
-            # compute part on GPU
-            prb_gpu = self.adj_ptycho_prb(data_gpu, scan_gpu, psi_gpu)
-            # copy to CPU
-            prb[ids] = prb_gpu.get()
-        return prb
+        probe = np.zeros([scan.shape[0], self.nprb, self.nprb], dtype='complex64')
+        return self._batch(self.adj_probe, probe, farplane, scan, psi)
 
-    def run(self, data, psi, scan, prb, **kwargs):
+    def run(self, data, psi, scan, probe, **kwargs):
         """Placehold for a child's solving function."""
         raise NotImplementedError("Cannot run a base class.")
 
-    def run_batch(self, data, psi, scan, prb, **kwargs):
+    def run_batch(self, data, psi, scan, probe, **kwargs):
         """Run by dividing the work into batches."""
-        assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
+        assert probe.ndim == 3, "probe needs 3 dimensions, not %d" % probe.ndim
 
         psi = psi.copy()
-        prb = prb.copy()
+        probe = probe.copy()
 
         # angle partitions in ptychography
-        for k in range(0, self.ntheta // self.ptheta):
+        for k in range(0, scan.shape[0] // self.ptheta):
             ids = np.arange(k * self.ptheta, (k + 1) * self.ptheta)
             # copy to GPU
             psi_gpu = cp.array(psi[ids])
-            scan_gpu = cp.array(scan[:, ids])
-            prb_gpu = cp.array(prb[ids])
+            scan_gpu = cp.array(scan[ids])
+            prb_gpu = cp.array(probe[ids])
             data_gpu = cp.array(data[ids])
             # solve cg ptychography problem for the part
             result = self.run(
@@ -188,10 +153,10 @@ class PtychoCuFFT(ptychofft):
                 prb_gpu,
                 **kwargs,
             )
-            psi[ids], prb[ids] = result['psi'].get(), result['prb'].get()
+            psi[ids], probe[ids] = result['psi'].get(), result['probe'].get()
         return {
             'psi': psi,
-            'prb': prb,
+            'probe': probe,
         }
 
 
@@ -230,7 +195,7 @@ class CGPtychoSolver(PtychoCuFFT):
             data,
             psi,
             scan,
-            prb,
+            probe,
             piter,
             model='gaussian',
             recover_prb=False,
@@ -247,7 +212,7 @@ class CGPtychoSolver(PtychoCuFFT):
             Whether to recover the probe or assume the given probe is correct.
 
         """
-        assert prb.ndim == 3, "prb needs 3 dimensions, not %d" % prb.ndim
+        assert probe.ndim == 3, "probe needs 3 dimensions, not %d" % probe.ndim
 
         # minimization functional
         def minf(fpsi):
@@ -265,20 +230,20 @@ class CGPtychoSolver(PtychoCuFFT):
         for i in range(piter):
             # 1) object retrieval subproblem with fixed probe
             # forward operator
-            fpsi = self.fwd_ptycho(psi, scan, prb)
+            fpsi = self.fwd(psi, scan, probe)
             # take gradient
             if model == 'gaussian':
-                gradpsi = self.adj_ptycho(
+                gradpsi = self.adj(
                     fpsi - cp.sqrt(data) * cp.exp(1j * cp.angle(fpsi)),
                     scan,
-                    prb,
-                ) / (cp.max(cp.abs(prb))**2)
+                    probe,
+                ) / (cp.max(cp.abs(probe))**2)
             elif model == 'poisson':
-                gradpsi = self.adj_ptycho(
+                gradpsi = self.adj(
                     fpsi - data * fpsi / (cp.abs(fpsi)**2 + 1e-32),
                     scan,
-                    prb,
-                ) / (cp.max(cp.abs(prb))**2)
+                    probe,
+                ) / (cp.max(cp.abs(probe))**2)
             # Dai-Yuan direction
             if i == 0:
                 dpsi = -gradpsi
@@ -288,7 +253,7 @@ class CGPtychoSolver(PtychoCuFFT):
                     (cp.sum(cp.conj(dpsi) * (gradpsi - gradpsi0))) * dpsi)
             gradpsi0 = gradpsi
             # line search
-            fdpsi = self.fwd_ptycho(dpsi, scan, prb)
+            fdpsi = self.fwd(dpsi, scan, probe)
             gammapsi = self.line_search(minf, fpsi, fdpsi)
             # update psi
             psi = psi + gammapsi * dpsi
@@ -296,16 +261,16 @@ class CGPtychoSolver(PtychoCuFFT):
             if (recover_prb):
                 # 2) probe retrieval subproblem with fixed object
                 # forward operator
-                fprb = self.fwd_ptycho(psi, scan, prb)
+                fprb = self.fwd(psi, scan, probe)
                 # take gradient
                 if model == 'gaussian':
-                    gradprb = self.adj_ptycho_prb(
+                    gradprb = self.adj_probe(
                         fprb - cp.sqrt(data) * cp.exp(1j * cp.angle(fprb)),
                         scan,
                         psi,
                     ) / cp.max(cp.abs(psi))**2 / self.nscan
                 elif model == 'poisson':
-                    gradprb = self.adj_ptycho_prb(
+                    gradprb = self.adj_probe(
                         fprb - data * fprb / (cp.abs(fprb)**2 + 1e-32),
                         scan,
                         psi,
@@ -319,18 +284,18 @@ class CGPtychoSolver(PtychoCuFFT):
                         (cp.sum(cp.conj(dprb) * (gradprb - gradprb0))) * dprb)
                 gradprb0 = gradprb
                 # line search
-                fdprb = self.fwd_ptycho(psi, scan, dprb)
+                fdprb = self.fwd(psi, scan, dprb)
                 gammaprb = self.line_search(minf, fprb, fdprb)
-                # update prb
-                prb = prb + gammaprb * dprb
+                # update probe
+                probe = probe + gammaprb * dprb
 
             # check convergence
             if (np.mod(i, 8) == 0):
-                fpsi = self.fwd_ptycho(psi, scan, prb)
+                fpsi = self.fwd(psi, scan, probe)
                 print("%4d, %.3e, %.3e, %.7e" %
                       (i, gammapsi, gammaprb, minf(fpsi)))
 
         return {
             'psi': psi,
-            'prb': prb,
+            'probe': probe,
         }

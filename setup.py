@@ -24,4 +24,9 @@ setup(
     package_dir={'': 'src'},
     packages=find_namespace_packages(where='src', include=['libtike.*']),
     zip_safe=False,
+    entry_points={
+        'tike.PtychoBackend': [
+            'cudafft = libtike.cufft.ptycho:PtychoCuFFT',
+        ],
+    },
 )
