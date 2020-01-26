@@ -19,9 +19,9 @@ if __name__ == "__main__":
     nprb = 128  # probe size
     ndet = 128  # detector x size
     ptheta = 1  # number of angular partitions for simultaneous processing in ptychography
-
+    nmodes = 1  # number of probe modes for decomposition
     # read probe
-    prb0 = np.zeros([ntheta, nprb, nprb], dtype='complex64')
+    prb0 = np.zeros([ntheta, nmodes, nprb, nprb], dtype='complex64')
     prbamp = dxchange.read_tiff('model/prbamp.tiff').astype('float32')
     prbang = dxchange.read_tiff('model/prbang.tiff').astype('float32')
     prb0[0] = prbamp*np.exp(1j*prbang)
@@ -51,9 +51,9 @@ if __name__ == "__main__":
         print('<FQP,FQP> = ', a)
         print('<P,Q*F*FQP> = ', b)
         print('<Q,P*F*FPQ> = ', c)
-        print('<FQP,FQP> - <P,Q*F*FQP> = ', a-b)         
-        print('<FQP,FQP> - <Q,P*F*FPQ> = ', a-c)         
-        if (((a-b)/a<1e-3)&((a-c)/a<1e-3)):
+        print('<FQP,FQP> - <P,Q*F*FQP> = ', a-b)
+        print('<FQP,FQP> - <Q,P*F*FPQ> = ', a-c)
+        if (((a-b)/a < 1e-3) & ((a-c)/a < 1e-3)):
             print('PASSED')
         else:
-            print('NOT PASSED')            
+            print('NOT PASSED')

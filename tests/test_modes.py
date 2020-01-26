@@ -26,12 +26,12 @@ if __name__ == "__main__":
     model = 'gaussian'  # minimization funcitonal (poisson,gaussian)
     piter = 64 # ptychography iterations
     ptheta = 1  # number of angular partitions for simultaneous processing in ptychography    
-    nmodes = 1 # number of probe modes for decomposition in reconstruction
+    nmodes = 1 # number of probe modes for decomposition in reconstruction (for the test compare results for nmodes=1,2)
     nmodes_gen = 2 # number of probe modes for decomposition in data generation (nmodes_gen>nmodes)
     # read probe
-    prb0 = np.zeros([ntheta,nmodes, nprb, nprb], dtype='complex64')
-    prbamp = dxchange.read_tiff('model/probes_amp.tiff')[0:nmodes].astype('float32')
-    prbang = dxchange.read_tiff('model/probes_ang.tiff')[0:nmodes].astype('float32')
+    prb0 = np.zeros([ntheta,nmodes_gen, nprb, nprb], dtype='complex64')
+    prbamp = dxchange.read_tiff('model/probes_amp.tiff')[0:nmodes_gen].astype('float32')
+    prbang = dxchange.read_tiff('model/probes_ang.tiff')[0:nmodes_gen].astype('float32')
     prb0[0] = prbamp*np.exp(1j*prbang)
 
     # read scan positions
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     with pt.CGPtychoSolver(nscan, nprb, ndet, ptheta, nz, n) as slv:
         # Compute intensity data on the detector |FQ|**2
         data = np.zeros([ntheta,nscan,ndet,ndet],dtype='float32')
-        for k in range(nmodes):
+        for k in range(nmodes_gen):
             data += np.abs(slv.fwd_ptycho_batch(psi0, scan, prb0[:,k]))**2
         dxchange.write_tiff(data, 'data', overwrite=True)
         
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         psi = np.ones([ntheta, nz, n], dtype='complex64')
         if (recover_prb):
             # Choose an adequate probe approximation
-            prb = prb0[:,:nmodes_rec].copy()
+            prb = prb0[:,:nmodes].copy()
         else:
             prb = prb0.copy()
         result = slv.run_batch(
@@ -66,7 +66,7 @@ if __name__ == "__main__":
         psi, prb = result['psi'], result['probe']
 
     # Save result
-    name = str(model)+str(piter)
+    name = str(model)+str(nmodes)+'modes'+str(piter)+'iters'
     dxchange.write_tiff(np.angle(psi),
                         'rec/psiang'+name, overwrite=True)
     dxchange.write_tiff(np.abs(psi),  'rec/prbamp'+name, overwrite=True)

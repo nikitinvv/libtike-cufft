@@ -26,12 +26,12 @@ if __name__ == "__main__":
     model = 'gaussian'  # minimization funcitonal (poisson,gaussian)
     piter = 128  # ptychography iterations
     ptheta = 1  # number of angular partitions for simultaneous processing in ptychography
-
+    nmodes = 1 # number of probe modes for decomposition
     # read probe
-    prb0 = np.zeros([ntheta, nprb, nprb], dtype='complex64')
+    prb0 = np.zeros([ntheta,nmodes, nprb, nprb], dtype='complex64')
     prbamp = dxchange.read_tiff('model/prbamp.tiff').astype('float32')
     prbang = dxchange.read_tiff('model/prbang.tiff').astype('float32')
-    prb0[0] = prbamp*np.exp(1j*prbang)
+    prb0[0,0] = prbamp*np.exp(1j*prbang)
 
     # read scan positions
     scan = np.ones([ntheta, nscan, 2], dtype='float32')
@@ -55,7 +55,7 @@ if __name__ == "__main__":
         psi = np.ones([ntheta, nz, n], dtype='complex64')
         if (recover_prb):
             # Choose an adequate probe approximation
-            prb = prb0.copy().swapaxes(1, 2)
+            prb = prb0.copy().swapaxes(2, 3)
         else:
             prb = prb0.copy()
         result = slv.run_batch(
@@ -90,19 +90,19 @@ if __name__ == "__main__":
     plt.gca().invert_yaxis()
     plt.subplot(2, 4, 1)
     plt.title('correct prb phase')
-    plt.imshow(np.angle(prb0[0]), cmap='gray')
+    plt.imshow(np.angle(prb0[0,0]), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 4, 2)
     plt.title('correct prb amplitude')
-    plt.imshow(np.abs(prb0[0]), cmap='gray')
+    plt.imshow(np.abs(prb0[0,0]), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 4, 3)
     plt.title('retrieved probe phase')
-    plt.imshow(np.angle(prb[0]), cmap='gray')
+    plt.imshow(np.angle(prb[0,0]), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 4, 4)
     plt.title('retrieved probe amplitude')
-    plt.imshow(np.abs(prb[0]), cmap='gray')
+    plt.imshow(np.abs(prb[0,0]), cmap='gray')
     plt.colorbar()
     plt.subplot(2, 2, 3)
     plt.title('object phase')
