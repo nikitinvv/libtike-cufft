@@ -298,8 +298,8 @@ class CGPtychoSolver(PtychoCuFFT):
                             psi,
                         ) / cp.max(cp.abs(psi))**2 / self.nscan
                     elif model == 'poisson':
-                        gradprb = self.adj_probe(
-                            fprb - data * fprb / (cp.abs(fprb)**2 + 1e-32),
+                        gradprb[:,m] = self.adj_probe(
+                            fprb - data * fprb / (absfprb + 1e-32),
                             scan,
                             psi,
                         ) / cp.max(cp.abs(psi))**2 / self.nscan
