@@ -167,7 +167,23 @@ class CGPtychoSolver(PtychoCuFFT):
 
     @staticmethod
     def line_search_sqr(f, p1, p2, p3, step_length=1, step_shrink=0.5):
-        """Optimized line search for square functions"""
+        """Optimized line search for square functions
+            Example of otimized computation for the Gaussian model:
+            sum_j|G_j(psi+gamma dpsi)|^2 = sum_j|G_j(psi)|^2+
+                                           gamma^2*sum_j|G_j(dpsi)|^2+
+                                           gamma*sum_j (G_j(psi).real*G_j(psi).real+2*G_j(dpsi).imag*G_j(dpsi).imag)
+            p1,p2,p3 are temp variables to avoid computing the fwd operator during the line serch
+            p1 = sum_j|G_j(psi)|^2
+            p2 = sum_j|G_j(dpsi)|^2
+            p3 = sum_j (G_j(psi).real*G_j(psi).real+2*G_j(dpsi).imag*G_j(dpsi).imag)
+
+            Parameters	
+            ----------	
+            f : function(x)	
+                The function being optimized.	
+            p1,p2,p3 : vectors	
+                Temporarily vectors to avoid computing forward operators        
+        """
         assert step_shrink > 0 and step_shrink < 1
         m = 0  # Some tuning parameter for termination
         fp1 = f(p1) # optimize computation
@@ -216,17 +232,21 @@ class CGPtychoSolver(PtychoCuFFT):
               "iteration, step size object, step size probe, function min"
               )  # csv column headers
         gammaprb = 0
+        fpsi0 = cp.zeros([self.ptheta, self.nscan, self.ndet,
+                             self.ndet], dtype='complex64')
         for i in range(piter):
             # 1) object retrieval subproblem with fixed probes
             # sum of forward operators associated with each probe
             fpsi = cp.zeros([self.ptheta, self.nscan, self.ndet,
-                             self.ndet], dtype='complex64')
+                             self.ndet], dtype='complex64')            
 	        # sum of abs value of forward operators
             absfpsi = data*0
             for k in range(probe.shape[1]):
                 tmp = self.fwd(psi, scan, probe[:, k])
                 fpsi += tmp
                 absfpsi += np.abs(tmp)**2
+            fpsi0 = fpsi.copy()
+            # check positions
             # take gradients
             gradpsi = cp.zeros(
                     [self.ptheta, self.nz, self.n], dtype='complex64')
