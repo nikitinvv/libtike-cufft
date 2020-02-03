@@ -46,13 +46,10 @@ class PtychoCuFFT(ptychofft):
         The pixel width and height of the probe illumination.
     ndet, ndet : int
         The pixel width and height of the detector.
-    ptheta : int
+    ntheta : int
         The number of angular partitions of the data.
     n, nz : int
         The pixel width and height of the reconstructed grid.
-    ptheta : int
-        The number of angular partitions to process together
-        simultaneously.
     """
 
     array_module = cp
@@ -86,8 +83,9 @@ class PtychoCuFFT(ptychofft):
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert probe.dtype == cp.complex64, f"{probe.dtype}"
         farplane = cp.zeros([self.ptheta, self.nscan, self.ndet, self.ndet],
-                       dtype='complex64')
-        ptychofft.fwd(self, farplane.data.ptr, psi.data.ptr, scan.data.ptr, probe.data.ptr)
+                            dtype='complex64')
+        ptychofft.fwd(self, farplane.data.ptr, psi.data.ptr,
+                      scan.data.ptr, probe.data.ptr)
         return farplane
 
     def fwd_ptycho_batch(self, psi, scan, probe):
@@ -103,7 +101,8 @@ class PtychoCuFFT(ptychofft):
         assert probe.dtype == cp.complex64, f"{probe.dtype}"
         psi = cp.zeros([self.ptheta, self.nz, self.n], dtype='complex64')
         flg = 0  # compute adjoint operator with respect to object
-        ptychofft.adj(self, psi.data.ptr, farplane.data.ptr, scan.data.ptr, probe.data.ptr, flg)
+        ptychofft.adj(self, psi.data.ptr, farplane.data.ptr,
+                      scan.data.ptr, probe.data.ptr, flg)
         return psi
 
     def adj_ptycho_batch(self, farplane, scan, probe):
@@ -116,14 +115,17 @@ class PtychoCuFFT(ptychofft):
         assert farplane.dtype == cp.complex64, f"{farplane.dtype}"
         assert scan.dtype == cp.float32, f"{scan.dtype}"
         assert psi.dtype == cp.complex64, f"{psi.dtype}"
-        probe = cp.zeros([self.ptheta, self.nprb, self.nprb], dtype='complex64')
+        probe = cp.zeros([self.ptheta, self.nprb, self.nprb],
+                         dtype='complex64')
         flg = 1  # compute adjoint operator with respect to probe
-        ptychofft.adj(self, psi.data.ptr, farplane.data.ptr, scan.data.ptr, probe.data.ptr, flg)
+        ptychofft.adj(self, psi.data.ptr, farplane.data.ptr,
+                      scan.data.ptr, probe.data.ptr, flg)
         return probe
 
     def adj_ptycho_batch_prb(self, farplane, scan, psi):
         """Batch of Ptychography transform (FQ)."""
-        probe = np.zeros([scan.shape[0], self.nprb, self.nprb], dtype='complex64')
+        probe = np.zeros(
+            [scan.shape[0], self.nprb, self.nprb], dtype='complex64')
         return self._batch(self.adj_probe, probe, farplane, scan, psi)
 
     def run(self, data, psi, scan, probe, **kwargs):
@@ -132,7 +134,7 @@ class PtychoCuFFT(ptychofft):
 
     def run_batch(self, data, psi, scan, probe, **kwargs):
         """Run by dividing the work into batches."""
-        assert probe.ndim == 3, "probe needs 3 dimensions, not %d" % probe.ndim
+        assert probe.ndim == 4, "probe needs 4 dimensions, not %d" % probe.ndim
 
         psi = psi.copy()
         probe = probe.copy()
@@ -164,32 +166,19 @@ class CGPtychoSolver(PtychoCuFFT):
     """Solve the ptychography problem using congujate gradient."""
 
     @staticmethod
-    def line_search(f, x, d, step_length=1, step_shrink=0.5):
-        """Return a new step_length using a backtracking line search.
-
-        https://en.wikipedia.org/wiki/Backtracking_line_search
-
-        Parameters
-        ----------
-        f : function(x)
-            The function being optimized.
-        x : vector
-            The current position.
-        d : vector
-            The search direction.
-
-        """
+    def line_search_sqr(f, p1, p2, p3, step_length=1, step_shrink=0.5):
+        """Optimized line search for square functions"""
         assert step_shrink > 0 and step_shrink < 1
         m = 0  # Some tuning parameter for termination
-        fx = f(x)  # Save the result of f(x) instead of computing it many times
+        fp1 = f(p1) # optimize computation
         # Decrease the step length while the step increases the cost function
-        while f(x + step_length * d) > fx + step_shrink * m:
+        while f(p1+step_length**2 * p2+step_length*p3) > fp1 + step_shrink * m:
             if step_length < 1e-32:
                 warnings.warn("Line search failed for conjugate gradient.")
                 return 0
-            step_length *= step_shrink
+            step_length *= step_shrink            
         return step_length
-
+    
     def run(
             self,
             data,
@@ -212,15 +201,15 @@ class CGPtychoSolver(PtychoCuFFT):
             Whether to recover the probe or assume the given probe is correct.
 
         """
-        assert probe.ndim == 3, "probe needs 3 dimensions, not %d" % probe.ndim
+        assert probe.ndim == 4, "probe needs 4 dimensions, not %d" % probe.ndim
 
         # minimization functional
         def minf(fpsi):
             if model == 'gaussian':
-                f = cp.linalg.norm(cp.abs(fpsi) - cp.sqrt(data))**2
+                f = cp.linalg.norm(cp.sqrt(cp.abs(fpsi)) - cp.sqrt(data))**2
             elif model == 'poisson':
                 f = cp.sum(
-                    cp.abs(fpsi)**2 - 2 * data * cp.log(cp.abs(fpsi) + 1e-32))
+                    cp.abs(fpsi) - data * cp.log(cp.abs(fpsi) + 1e-32))
             return f
 
         print("# congujate gradient parameters\n"
@@ -228,22 +217,33 @@ class CGPtychoSolver(PtychoCuFFT):
               )  # csv column headers
         gammaprb = 0
         for i in range(piter):
-            # 1) object retrieval subproblem with fixed probe
-            # forward operator
-            fpsi = self.fwd(psi, scan, probe)
-            # take gradient
-            if model == 'gaussian':
-                gradpsi = self.adj(
-                    fpsi - cp.sqrt(data) * cp.exp(1j * cp.angle(fpsi)),
-                    scan,
-                    probe,
-                ) / (cp.max(cp.abs(probe))**2)
+            # 1) object retrieval subproblem with fixed probes
+            # sum of forward operators associated with each probe
+            fpsi = cp.zeros([self.ptheta, self.nscan, self.ndet,
+                             self.ndet], dtype='complex64')
+	        # sum of abs value of forward operators
+            absfpsi = data*0
+            for k in range(probe.shape[1]):
+                tmp = self.fwd(psi, scan, probe[:, k])
+                fpsi += tmp
+                absfpsi += np.abs(tmp)**2
+            # take gradients
+            gradpsi = cp.zeros(
+                    [self.ptheta, self.nz, self.n], dtype='complex64')
+            if model == 'gaussian':                
+                for k in range(probe.shape[1]):
+                    gradpsi += self.adj(
+                        fpsi - cp.sqrt(data) * fpsi/(cp.sqrt(absfpsi)+1e-32),
+                        scan,
+                        probe[:, k],
+                    ) / (cp.max(cp.abs(probe[:, k]))**2)
             elif model == 'poisson':
-                gradpsi = self.adj(
-                    fpsi - data * fpsi / (cp.abs(fpsi)**2 + 1e-32),
-                    scan,
-                    probe,
-                ) / (cp.max(cp.abs(probe))**2)
+                for k in range(probe.shape[1]):
+                    gradpsi += self.adj(
+                        fpsi - data * fpsi / (absfpsi + 1e-32),
+                        scan,
+                        probe[:, k],
+                    ) / (cp.max(cp.abs(probe[:, k]))**2)
             # Dai-Yuan direction
             if i == 0:
                 dpsi = -gradpsi
@@ -252,48 +252,89 @@ class CGPtychoSolver(PtychoCuFFT):
                     cp.linalg.norm(gradpsi)**2 /
                     (cp.sum(cp.conj(dpsi) * (gradpsi - gradpsi0))) * dpsi)
             gradpsi0 = gradpsi
-            # line search
-            fdpsi = self.fwd(dpsi, scan, probe)
-            gammapsi = self.line_search(minf, fpsi, fdpsi)
+            
+	        
+            # Use optimized line search for square functions, note:
+            # sum_j|G_j(psi+gamma dpsi)|^2 = sum_j|G_j(psi)|^2+
+            #                               gamma^2*sum_j|G_j(dpsi)|^2+
+            #                               gamma*sum_j (G_j(psi).real*G_j(psi).real+2*G_j(dpsi).imag*G_j(dpsi).imag)
+            # temp variables to avoid computing the fwd operator during the line serch
+            #p1 = sum_j|G_j(psi)|^2
+            #p2 = sum_j|G_j(dpsi)|^2
+            #p3 = sum_j (G_j(psi).real*G_j(psi).real+2*G_j(dpsi).imag*G_j(dpsi).imag)
+            p1 = data*0 
+            p2 = data*0
+            p3 = data*0
+            for k in range(probe.shape[1]):
+                tmp1 = self.fwd(psi, scan, probe[:, k])
+                tmp2 = self.fwd(dpsi, scan, probe[:, k])
+                p1 += cp.abs(tmp1)**2 
+                p2 += cp.abs(tmp2)**2
+                p3 += 2*(tmp1.real*tmp2.real+tmp1.imag*tmp2.imag)
+            # line search		
+            gammapsi = 0.5*self.line_search_sqr(minf,p1,p2,p3)
             # update psi
             psi = psi + gammapsi * dpsi
-
+            
             if (recover_prb):
-                # 2) probe retrieval subproblem with fixed object
-                # forward operator
-                fprb = self.fwd(psi, scan, probe)
-                # take gradient
-                if model == 'gaussian':
-                    gradprb = self.adj_probe(
-                        fprb - cp.sqrt(data) * cp.exp(1j * cp.angle(fprb)),
-                        scan,
-                        psi,
-                    ) / cp.max(cp.abs(psi))**2 / self.nscan
-                elif model == 'poisson':
-                    gradprb = self.adj_probe(
-                        fprb - data * fprb / (cp.abs(fprb)**2 + 1e-32),
-                        scan,
-                        psi,
-                    ) / cp.max(cp.abs(psi))**2 / self.nscan
-                # Dai-Yuan direction
-                if (i == 0):
-                    dprb = -gradprb
-                else:
-                    dprb = -gradprb + (
-                        cp.linalg.norm(gradprb)**2 /
-                        (cp.sum(cp.conj(dprb) * (gradprb - gradprb0))) * dprb)
-                gradprb0 = gradprb
-                # line search
-                fdprb = self.fwd(psi, scan, dprb)
-                gammaprb = self.line_search(minf, fprb, fdprb)
-                # update probe
-                probe = probe + gammaprb * dprb
-
+                if(i==0):
+                    gradprb = probe*0
+                    gradprb0 = probe*0
+                    dprb = probe*0
+                for m in range(0,probe.shape[1]):
+                    # 2) probe retrieval subproblem with fixed object
+                    # sum of forward operators associated with each probe                    
+                    fprb = self.fwd(psi, scan, probe[:, m])
+	                # sum of abs value of forward operators
+                    absfprb = data*0
+                    for k in range(probe.shape[1]):
+                        tmp = self.fwd(psi, scan, probe[:, k])                        
+                        absfprb += np.abs(tmp)**2
+                    # take gradient
+                    if model == 'gaussian':
+                        gradprb[:,m] = self.adj_probe(
+                            fprb - cp.sqrt(data) * fprb/(cp.sqrt(absfprb)+1e-32),
+                            scan,
+                            psi,
+                        ) / cp.max(cp.abs(psi))**2 / self.nscan
+                    elif model == 'poisson':
+                        gradprb[:,m] = self.adj_probe(
+                            fprb - data * fprb / (absfprb + 1e-32),
+                            scan,
+                            psi,
+                        ) / cp.max(cp.abs(psi))**2 / self.nscan
+                    # Dai-Yuan direction
+                    if (i == 0):
+                        dprb[:,m] = -gradprb[:,m]
+                    else:
+                        dprb[:,m] = -gradprb[:,m] + (
+                            cp.linalg.norm(gradprb[:,m])**2 /
+                            (cp.sum(cp.conj(dprb[:,m]) * (gradprb[:,m] - gradprb0[:,m]))) * dprb[:,m])
+                    gradprb0[:,m] = gradprb[:,m]
+                    # temp variables to avoid computing the fwd operator during the line serch
+                    p1 = data*0
+                    p2 = data*0
+                    p3 = data*0
+                    for k in range(probe.shape[1]):
+                        tmp1 = self.fwd(psi, scan, probe[:, k])
+                        p1 += cp.abs(tmp1)**2
+                    tmp1 = self.fwd(psi, scan, probe[:, m])                        
+                    tmp2 = self.fwd(psi, scan, dprb[:, m])                                                
+                    p2 = cp.abs(tmp2)**2
+                    p3 = 2*(tmp1.real*tmp2.real+tmp1.imag*tmp2.imag)
+                    # line search		
+                    gammaprb = 0.5*self.line_search_sqr(minf,p1,p2,p3)
+                    # update probe                       
+                    probe[:,m] = probe[:,m] + gammaprb * dprb[:,m]                
             # check convergence
             if (np.mod(i, 8) == 0):
-                fpsi = self.fwd(psi, scan, probe)
+                sfpsi = cp.zeros(
+                    [self.ptheta, self.nscan, self.ndet, self.ndet], dtype='complex64')
+                for k in range(probe.shape[1]):
+                    tmp = self.fwd(psi, scan, probe[:, k])
+                    sfpsi += np.abs(tmp)**2
                 print("%4d, %.3e, %.3e, %.7e" %
-                      (i, gammapsi, gammaprb, minf(fpsi)))
+                      (i, gammapsi, gammaprb, minf(sfpsi)))
 
         return {
             'psi': psi,
