@@ -182,7 +182,7 @@ class CGPtychoSolver(PtychoCuFFT):
             f : function(x)	
                 The function being optimized.	
             p1,p2,p3 : vectors	
-                Temppraroily vectors to avoid computing forward operators        
+                Temporarily vectors to avoid computing forward operators        
         """
         assert step_shrink > 0 and step_shrink < 1
         m = 0  # Some tuning parameter for termination
