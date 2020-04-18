@@ -27,7 +27,7 @@ import warnings
 
 import cupy as cp
 import numpy as np
-
+import dxchange
 from libtike.cufft.ptychofft import ptychofft
 
 
@@ -160,7 +160,34 @@ class PtychoCuFFT(ptychofft):
             'psi': psi,
             'probe': probe,
         }
+def orthogonalize_eig(x):
+    """Orthogonalize modes of x using eigenvectors of the pairwise dot product.
+    Parameters
+    ----------
+    x : (nmodes, probe_shape * probe_shape) array_like complex64
+        An array of the probe modes vectorized
+    References
+    ----------
+    M. Odstrcil, P. Baksh, S. A. Boden, R. Card, J. E. Chad, J. G. Frey, W. S.
+    Brocklesby, "Ptychographic coherent diffractive imaging with orthogonal
+    probe relaxation." Opt. Express 24, 8360 (2016). doi: 10.1364/OE.24.008360
+    """
+    nmodes = x.shape[0]
+    # 'A' holds the dot product of all possible mode pairs
+    A = np.empty((nmodes, nmodes), dtype='complex64')
+    for i in range(nmodes):
+        for j in range(nmodes):
+            A[i, j] = np.sum(np.conj(x[i]) * x[j])
 
+    values, vectors = np.linalg.eig(A)
+
+    x_new = np.zeros_like(x)
+    for i in range(nmodes):
+        for j in range(nmodes):
+            x_new[j] += vectors[i, j] * x[i]
+
+    # Sort new modes by eigen value in decending order
+    return x_new[np.argsort(-values)],np.argsort(-values)
 
 class CGPtychoSolver(PtychoCuFFT):
     """Solve the ptychography problem using congujate gradient."""
@@ -204,6 +231,7 @@ class CGPtychoSolver(PtychoCuFFT):
             piter,
             model='gaussian',
             recover_prb=False,
+            ortho_prb=False,
     ):
         """Conjugate gradients for ptychography.
 
@@ -218,7 +246,6 @@ class CGPtychoSolver(PtychoCuFFT):
 
         """
         assert probe.ndim == 4, "probe needs 4 dimensions, not %d" % probe.ndim
-
         # minimization functional
         def minf(fpsi):
             if model == 'gaussian':
@@ -227,31 +254,39 @@ class CGPtychoSolver(PtychoCuFFT):
                 f = cp.sum(
                     cp.abs(fpsi) - data * cp.log(cp.abs(fpsi) + 1e-32))
             return f
-
+        dprb=0
+        dpsi=0
+        gradprb0=0
+        gradpsi0=0
         print("# congujate gradient parameters\n"
               "iteration, step size object, step size probe, function min"
               )  # csv column headers
         gammaprb = 0
-        fpsi0 = cp.zeros([self.ptheta, self.nscan, self.ndet,
-                             self.ndet], dtype='complex64')
         for i in range(piter):
+            
             # 1) object retrieval subproblem with fixed probes
             # sum of forward operators associated with each probe
-            fpsi = cp.zeros([self.ptheta, self.nscan, self.ndet,
-                             self.ndet], dtype='complex64')            
+            #fpsi = cp.zeros([self.ptheta, self.nscan, self.ndet,
+             #                self.ndet], dtype='complex64')            
 	        # sum of abs value of forward operators
             absfpsi = data*0
             for k in range(probe.shape[1]):
                 tmp = self.fwd(psi, scan, probe[:, k])
-                fpsi += tmp
                 absfpsi += np.abs(tmp)**2
-            fpsi0 = fpsi.copy()
-            # check positions
+            
+            a=cp.linalg.norm(cp.sqrt(absfpsi[0,:]))
+            b=cp.linalg.norm(cp.sqrt(data[0,:]))
+            probe*=(b/a)
+            absfpsi*=(b/a)**(1+(i==0))
+            gradprb0*=(b/a)
+            dprb*=(b/a)
             # take gradients
             gradpsi = cp.zeros(
                     [self.ptheta, self.nz, self.n], dtype='complex64')
             if model == 'gaussian':                
                 for k in range(probe.shape[1]):
+                    fpsi = self.fwd(psi, scan, probe[:, k])*(b/a)
+                
                     gradpsi += self.adj(
                         fpsi - cp.sqrt(data) * fpsi/(cp.sqrt(absfpsi)+1e-32),
                         scan,
@@ -265,6 +300,7 @@ class CGPtychoSolver(PtychoCuFFT):
                         probe[:, k],
                     ) / (cp.max(cp.abs(probe[:, k]))**2)
             # Dai-Yuan direction
+            #dpsi = -gradpsi
             if i == 0:
                 dpsi = -gradpsi
             else:
@@ -301,6 +337,12 @@ class CGPtychoSolver(PtychoCuFFT):
                     gradprb = probe*0
                     gradprb0 = probe*0
                     dprb = probe*0
+                # if(ortho_prb):
+                #     tt=orthogonalize_eig(probe[0].get())
+                #   #  print(ids)
+                #     probe[0]=cp.array(tt)
+                    # dprb=dprb[:,ids]
+                    # gradprb0=gradprb0[:,ids]    
                 for m in range(0,probe.shape[1]):
                     # 2) probe retrieval subproblem with fixed object
                     # sum of forward operators associated with each probe                    
@@ -309,14 +351,14 @@ class CGPtychoSolver(PtychoCuFFT):
                     absfprb = data*0
                     for k in range(probe.shape[1]):
                         tmp = self.fwd(psi, scan, probe[:, k])                        
-                        absfprb += np.abs(tmp)**2
+                        absfprb += np.abs(tmp)**2                   
                     # take gradient
                     if model == 'gaussian':
                         gradprb[:,m] = self.adj_probe(
                             fprb - cp.sqrt(data) * fprb/(cp.sqrt(absfprb)+1e-32),
                             scan,
                             psi,
-                        ) / cp.max(cp.abs(psi))**2 / self.nscan
+                        ) / cp.max(cp.abs(psi))**2 / self.nscan * probe.shape[1]#?
                     elif model == 'poisson':
                         gradprb[:,m] = self.adj_probe(
                             fprb - data * fprb / (absfprb + 1e-32),
@@ -324,6 +366,7 @@ class CGPtychoSolver(PtychoCuFFT):
                             psi,
                         ) / cp.max(cp.abs(psi))**2 / self.nscan
                     # Dai-Yuan direction
+                    #dprb[:,m] = -gradprb[:,m]
                     if (i == 0):
                         dprb[:,m] = -gradprb[:,m]
                     else:
@@ -343,18 +386,27 @@ class CGPtychoSolver(PtychoCuFFT):
                     p2 = cp.abs(tmp2)**2
                     p3 = 2*(tmp1.real*tmp2.real+tmp1.imag*tmp2.imag)
                     # line search		
-                    gammaprb = 0.5*self.line_search_sqr(minf,p1,p2,p3)
+                    gammaprb = 0.5*self.line_search_sqr(minf,p1,p2,p3,step_length=1)
                     # update probe                       
                     probe[:,m] = probe[:,m] + gammaprb * dprb[:,m]                
+                              
+                    # if(ortho_prb):
+                    #     for k in range(m):
+                    #         probe[:,m] = probe[:,m] \
+                    #         - cp.sum(probe[:,m]*cp.conj(probe[:,k]))/cp.sum(probe[:,k]*cp.conj(probe[:,k]))*probe[:,k] 
+                # probe=probe_new.copy()    
+               
+                        
             # check convergence
-            if (np.mod(i, 8) == 0):
+            if (np.mod(i, 1) == 0):
                 sfpsi = cp.zeros(
                     [self.ptheta, self.nscan, self.ndet, self.ndet], dtype='complex64')
                 for k in range(probe.shape[1]):
                     tmp = self.fwd(psi, scan, probe[:, k])
                     sfpsi += np.abs(tmp)**2
                 print("%4d, %.3e, %.3e, %.7e" %
-                      (i, gammapsi, gammaprb, minf(sfpsi)))
+                      (i, gammapsi, gammaprb, minf(absfpsi)))
+                dxchange.write_tiff(cp.angle(psi[0]).get(),'tmp/'+str(i))
 
         return {
             'psi': psi,

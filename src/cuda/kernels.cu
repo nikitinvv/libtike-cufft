@@ -21,9 +21,20 @@ void __global__ muloperator(float2 *f, float2 *g, float2 *prb,
 
   float sx;  // modf requires a place to save the integer part
   float sy;
-  float sxf = modff(scan[ty + tz * Nscan].y, &sx);
-  float syf = modff(scan[ty + tz * Nscan].x, &sy);
+  float sxf ;
+  float syf;
+  
+  sxf = modff(scan[ty + tz * Nscan].y, &sx);
+  syf = modff(scan[ty + tz * Nscan].x, &sy);
 
+  sxf=0;
+  syf=0; // temporarily for TESTING
+
+  //sx = (int)(scan[ty + tz * Nscan].y);
+  //sy = (int)(scan[ty + tz * Nscan].x);
+  //sxf = (scan[ty + tz * Nscan].y)-sx;
+  //syf = (scan[ty + tz * Nscan].x)-sy;
+  
   // skip scans where the probe position is negative (undefined)
   if (sx < 0 || sy < 0) return;
 
@@ -53,7 +64,7 @@ void __global__ muloperator(float2 *f, float2 *g, float2 *prb,
 
   const float c = 1.0 / static_cast<float>(ndet); // fft constant
   float2 tmp; //tmp variable
-
+  
   // Linear interpolation
   if(flg==0) //adjoint
   {

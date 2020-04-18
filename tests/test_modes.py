@@ -29,8 +29,8 @@ if __name__ == "__main__":
     nmodes = 3 # number of probe modes for decomposition in reconstruction
     # read real probe
     prb_real = np.zeros([ntheta,nmodes, nprb, nprb], dtype='complex64')    
-    prb_amp_real = dxchange.read_tiff('model/probes_amp_real.tiff')[0:nmodes].astype('float32')
-    prb_ang_real = dxchange.read_tiff('model/probes_ang_real.tiff')[0:nmodes].astype('float32')
+    prb_amp_real = dxchange.read_tiff('model/probes_amp.tiff')[0:nmodes].astype('float32')
+    prb_ang_real = dxchange.read_tiff('model/probes_ang.tiff')[0:nmodes].astype('float32')
     prb_real[0] = prb_amp_real*np.exp(1j*prb_ang_real)
     # read initial guess for the probe
     prb_init = np.zeros([ntheta,nmodes, nprb, nprb], dtype='complex64')
