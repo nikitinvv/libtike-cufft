@@ -241,7 +241,7 @@ if __name__ == "__main__":
       f[spid].attrs['rotation_angle'] = np.float32(ptychoDAO.rotation_angle)
       logging.info("File ({}) is updated with pid={}".format(hfile, spid))
     dxchange.write_tiff_stack(np.angle(psi),
-                        args.output_path + "/" + spid + '/psi_angle/' + name + '.tiff')
+                        args.output_path + "/" + spid + '/psi_angle/' + name + '.tiff',overwrite=True)
     dxchange.write_tiff_stack(np.abs(psi),  
                         args.output_path + "/" + spid + '/psi_amp/' + name + '.tiff', overwrite=True)
     dxchange.write_tiff_stack(np.angle(prb[0]),

@@ -27,8 +27,8 @@ void __global__ muloperator(float2 *f, float2 *g, float2 *prb,
   sxf = modff(scan[ty + tz * Nscan].y, &sx);
   syf = modff(scan[ty + tz * Nscan].x, &sy);
 
-  sxf=0;
-  syf=0; // temporarily for TESTING
+  //sxf=0;
+  //syf=0; // temporarily for TESTING
 
   //sx = (int)(scan[ty + tz * Nscan].y);
   //sy = (int)(scan[ty + tz * Nscan].x);
