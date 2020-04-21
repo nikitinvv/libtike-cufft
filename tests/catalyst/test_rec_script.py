@@ -24,8 +24,8 @@ class PtychoDAO(object):
                 use_original_positions=False, 
                 swap_position_axes=True,
                 reset_position_coordinates=True,
-                use_original_probes=True,
-                swap_probe_axes=True,
+                use_original_probes=False,
+                swap_probe_axes=False,
                 data_fftshift=True,
                 view_dims=(2048,2048),
                 map_position_detector_pixel=1.):
@@ -75,9 +75,9 @@ class PtychoDAO(object):
     else : 
       positions = np.array(fid['/positions_1'], dtype=np.float32, order='C')
       logging.info("Real positions were read: shape={}; type={}".format(positions.shape, positions.dtype))
-    pos2det_const = np.float32(((detector_pixel_size * probes.shape[-1]) / #XXX probes.shape[-1] is shaky
+    pos2det_const = np.float64(((detector_pixel_size * probes.shape[-1]) / #XXX probes.shape[-1] is shaky
                       (detector_distance * 1e-10 * incident_wavelength)) * map_position_detector_pixel)
-    positions = positions * pos2det_const
+    positions = np.float32(positions * pos2det_const)
     logging.info("Positions were mapped to detector using: {}".format(pos2det_const))
 
     if swap_position_axes: 
@@ -202,7 +202,7 @@ if __name__ == "__main__":
     data.shape = (1, ) + data.shape
     # Setup object
     psi = np.zeros((1, view_dims[0]+data.shape[-1], view_dims[1]+data.shape[-1]), 
-                      dtype='complex64', order='C') + 1
+                      dtype='complex64', order='C') + 1*np.exp(-1j*0.25)
     nmodes = args.nmodes
     prb = prb[:, :nmodes]    
 

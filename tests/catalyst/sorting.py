@@ -14,23 +14,24 @@ for k in range(192,361):
     tilt = a.attrs['tilt_angle']
     b = np.angle(a['matlab_obj_recon'][:])
     b = ba[j]
-    b = ndimage.interpolation.rotate(b,-tilt)
+    b = ndimage.interpolation.rotate(b,-tilt,order=5)
     c=ndimage.measurements.center_of_mass(b*(b>0))
     cx = np.int(c[1])
     cy = np.int(c[0])
-    b=b[cy-300:cy+300,cx-300:cx+300]    
+    b=b[cy-350:cy+350,cx-350:cx+350]    
     b=b+0.305
     c=ndimage.measurements.center_of_mass(b*(b>0))
     cx = np.int(c[1])
     cy = np.int(c[0])    
     b=b[cy-256:cy+256,cx-256:cx+256]
+    b-=np.mean(b[32:64,32:64])
     rec[j,0:b.shape[0],0:b.shape[1]]=b
     j+=1
     # dxchange.write_tiff(b,'matlab/'+str(k),overwrite=True)
     # dxchange.write_tiff(,'matlaba/'+str(k),overwrite=True)
 ids = np.argsort(ang)    
 rec = rec[ids]
-dxchange.write_tiff(rec,'rec',overwrite=True)
+dxchange.write_tiff(rec,'rec_new',overwrite=True)
 np.save('angle',ang[ids])
 # print(b.shape)
 # for k in range(7):

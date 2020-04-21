@@ -29,7 +29,7 @@ import cupy as cp
 import numpy as np
 import dxchange
 from libtike.cufft.ptychofft import ptychofft
-
+from skimage.feature import register_translation
 
 class PtychoCuFFT(ptychofft):
     """Base class for ptychography solvers using the cuFFT library.
@@ -87,7 +87,7 @@ class PtychoCuFFT(ptychofft):
         ptychofft.fwd(self, farplane.data.ptr, psi.data.ptr,
                       scan.data.ptr, probe.data.ptr)
         return farplane
-
+        
     def fwd_ptycho_batch(self, psi, scan, probe):
         """Batch of Ptychography transform (FQ)."""
         data = np.zeros([scan.shape[0], self.nscan, self.ndet, self.ndet],
@@ -160,34 +160,92 @@ class PtychoCuFFT(ptychofft):
             'psi': psi,
             'probe': probe,
         }
-def orthogonalize_eig(x):
-    """Orthogonalize modes of x using eigenvectors of the pairwise dot product.
-    Parameters
-    ----------
-    x : (nmodes, probe_shape * probe_shape) array_like complex64
-        An array of the probe modes vectorized
-    References
-    ----------
-    M. Odstrcil, P. Baksh, S. A. Boden, R. Card, J. E. Chad, J. G. Frey, W. S.
-    Brocklesby, "Ptychographic coherent diffractive imaging with orthogonal
-    probe relaxation." Opt. Express 24, 8360 (2016). doi: 10.1364/OE.24.008360
-    """
-    nmodes = x.shape[0]
-    # 'A' holds the dot product of all possible mode pairs
-    A = np.empty((nmodes, nmodes), dtype='complex64')
-    for i in range(nmodes):
-        for j in range(nmodes):
-            A[i, j] = np.sum(np.conj(x[i]) * x[j])
+def _upsampled_dft_batch(data, ups,
+                   upsample_factor=1, axis_offsets=None):
+   
+    im2pi = 1j * 2 * np.pi
+    # rec1 = np.zeros([data.shape[0],ups.astype(int),ups.astype(int)],dtype='complex128')
+    # for k in range(data.shape[0]):
+    #     tdata = data[k]
+    #     dim_properties = list(zip(tdata.shape, axis_offsets[k]))
+    #    # print(dim_properties)        
+    #     for (n_items, ax_offset) in dim_properties[::-1]:
+    #         kernel = ((np.arange(ups) - ax_offset)[:, None]
+    #                   * np.fft.fftfreq(n_items, upsample_factor))
+    #         kernel = np.exp(-im2pi * kernel)
+    #         tdata = np.tensordot(kernel, tdata, axes=(1, -1))            
+    #     rec1[k] = tdata
+    
+    tdata = data.copy()
+    kernel = (cp.tile(cp.arange(ups),(data.shape[0],1))-axis_offsets[:,1:2])[:,:,None]*cp.fft.fftfreq(data.shape[2], upsample_factor)
+    kernel = cp.exp(-im2pi * kernel)
+    tdata = cp.einsum('ijk,ipk->ijp',kernel,tdata)
+    kernel = (cp.tile(cp.arange(ups),(data.shape[0],1))-axis_offsets[:,0:1])[:,:,None]*cp.fft.fftfreq(data.shape[2], upsample_factor)
+    kernel = cp.exp(-im2pi * kernel)
+    rec = cp.einsum('ijk,ipk->ijp',kernel,tdata)
+    
+    
+    return rec
 
-    values, vectors = np.linalg.eig(A)
+def register_translation_batch(src_image, target_image, upsample_factor=1,
+                         space="real"):
+    # assume complex data is already in Fourier space
+    if space.lower() == 'fourier':
+        src_freq = src_image
+        target_freq = target_image
+    # real data needs to be fft'd.
+    elif space.lower() == 'real':
+        src_freq = cp.fft.fft2(src_image)
+        target_freq = cp.fft.fft2(target_image)
+    
+    # Whole-pixel shift - Compute cross-correlation by an IFFT
+    shape = src_freq.shape
+    image_product = src_freq * target_freq.conj()
+    cross_correlation = cp.fft.ifft2(image_product)
+    A = cp.abs(cross_correlation)                          
+    maxima = A.reshape(A.shape[0],-1).argmax(1)
+    maxima = cp.column_stack(cp.unravel_index(maxima,A[0,:,:].shape))
 
-    x_new = np.zeros_like(x)
-    for i in range(nmodes):
-        for j in range(nmodes):
-            x_new[j] += vectors[i, j] * x[i]
+    midpoints = np.array([cp.fix(axis_size / 2) for axis_size in shape[1:]])
 
-    # Sort new modes by eigen value in decending order
-    return x_new[np.argsort(-values)],np.argsort(-values)
+    shifts = cp.array(maxima, dtype=cp.float64)
+    ids = cp.where(shifts[:,0] > midpoints[0])
+    shifts[ids[0],0] -= shape[1]
+    ids = cp.where(shifts[:,1] > midpoints[1])
+    shifts[ids[0],1] -= shape[2]
+    if upsample_factor > 1:
+        # Initial shift estimate in upsampled grid
+        shifts = np.round(shifts * upsample_factor) / upsample_factor
+        upsampled_region_size = np.ceil(upsample_factor * 1.5)
+        # Center of output array at dftshift + 1
+        dftshift = np.fix(upsampled_region_size / 2.0)
+        
+        normalization = (src_freq[0].size * upsample_factor ** 2)
+        # Matrix multiply DFT around the current shift estimate
+     
+        sample_region_offset = dftshift - shifts*upsample_factor
+        cross_correlation = _upsampled_dft_batch(image_product.conj(),
+                                           upsampled_region_size,
+                                           upsample_factor,
+                                           sample_region_offset).conj()
+        cross_correlation /= normalization
+        # Locate maximum and map back to original pixel grid
+        A = cp.abs(cross_correlation)                          
+        maxima = A.reshape(A.shape[0],-1).argmax(1)
+        maxima = cp.column_stack(cp.unravel_index(maxima,A[0,:,:].shape))
+
+        maxima = cp.array(maxima, dtype=cp.float64) - dftshift
+
+        shifts = shifts + maxima / upsample_factor       
+
+    # If its only one row or column the shift along that dimension has no
+    # effect. We set to zero.
+    for dim in range(src_freq.ndim):
+        if shape[dim] == 1:
+            shifts[dim] = 0
+
+    
+    return shifts
 
 class CGPtychoSolver(PtychoCuFFT):
     """Solve the ptychography problem using congujate gradient."""
@@ -262,13 +320,13 @@ class CGPtychoSolver(PtychoCuFFT):
               "iteration, step size object, step size probe, function min"
               )  # csv column headers
         gammaprb = 0
+        
+        #dslv = dc.SolverDeform(self.nscan, self.nprb, self.nprb)
         for i in range(piter):
             
             # 1) object retrieval subproblem with fixed probes
             # sum of forward operators associated with each probe
-            #fpsi = cp.zeros([self.ptheta, self.nscan, self.ndet,
-             #                self.ndet], dtype='complex64')            
-	        # sum of abs value of forward operators
+            # sum of abs value of forward operators
             absfpsi = data*0
             for k in range(probe.shape[1]):
                 tmp = self.fwd(psi, scan, probe[:, k])
@@ -285,8 +343,7 @@ class CGPtychoSolver(PtychoCuFFT):
                     [self.ptheta, self.nz, self.n], dtype='complex64')
             if model == 'gaussian':                
                 for k in range(probe.shape[1]):
-                    fpsi = self.fwd(psi, scan, probe[:, k])*(b/a)
-                
+                    fpsi = self.fwd(psi, scan, probe[:, k])*(b/a)                
                     gradpsi += self.adj(
                         fpsi - cp.sqrt(data) * fpsi/(cp.sqrt(absfpsi)+1e-32),
                         scan,
@@ -329,8 +386,20 @@ class CGPtychoSolver(PtychoCuFFT):
                 p3 += 2*(tmp1.real*tmp2.real+tmp1.imag*tmp2.imag)
             # line search		
             gammapsi = 0.5*self.line_search_sqr(minf,p1,p2,p3)
+            
+
+            # position correction
+            
+            if(i>0):
+                tmp1 = self.fwd(psi, scan, probe[:, 0]*0+1)[0]
+                tmp2 = self.fwd(psi+gammapsi * dpsi, scan, probe[:, 0]*0+1)[0]
+                shifts = register_translation_batch(tmp1,tmp2,upsample_factor=100, space='fourier')
+                #print(np.linalg.norm(shifts))
+                scan[0,:]+=shifts
             # update psi
             psi = psi + gammapsi * dpsi
+
+
             
             if (recover_prb):
                 if(i==0):
@@ -398,7 +467,7 @@ class CGPtychoSolver(PtychoCuFFT):
                
                         
             # check convergence
-            if (np.mod(i, 1) == 0):
+            if (np.mod(i, 32) == 0):
                 sfpsi = cp.zeros(
                     [self.ptheta, self.nscan, self.ndet, self.ndet], dtype='complex64')
                 for k in range(probe.shape[1]):
@@ -406,7 +475,7 @@ class CGPtychoSolver(PtychoCuFFT):
                     sfpsi += np.abs(tmp)**2
                 print("%4d, %.3e, %.3e, %.7e" %
                       (i, gammapsi, gammaprb, minf(absfpsi)))
-                dxchange.write_tiff(cp.angle(psi[0]).get(),'tmp/'+str(i))
+                #dxchange.write_tiff(cp.angle(psi[0]).get(),'tmp/'+str(i))
 
         return {
             'psi': psi,
