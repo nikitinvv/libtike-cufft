@@ -332,12 +332,17 @@ class CGPtychoSolver(PtychoCuFFT):
                 tmp = self.fwd(psi, scan, probe[:, k])
                 absfpsi += np.abs(tmp)**2
             
-            a=cp.linalg.norm(cp.sqrt(absfpsi[0,:]))
-            b=cp.linalg.norm(cp.sqrt(data[0,:]))
-            probe*=(b/a)
-            absfpsi*=(b/a)**(1+(i==0))
-            gradprb0*=(b/a)
-            dprb*=(b/a)
+            # a=cp.linalg.norm(cp.sqrt(absfpsi[0,:]))
+            # b=cp.linalg.norm(cp.sqrt(data[0,:]))
+            # probe*=(b/a)
+            # absfpsi*=(b/a)**(1+(i==0))
+            # gradprb0*=(b/a)
+            # dprb*=(b/a)
+                        
+            a = cp.sum(cp.sqrt(absfpsi*data))
+            b = cp.sum(absfpsi)
+            probe *= (a/b)
+            absfpsi *= (a/b)**2
             # take gradients
             gradpsi = cp.zeros(
                     [self.ptheta, self.nz, self.n], dtype='complex64')
